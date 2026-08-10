@@ -8,6 +8,8 @@ Uncloud-to-Ployz rename.
 
 - [`UPSTREAM_ORACLE.md`](UPSTREAM_ORACLE.md) records the immutable source pin,
   reproducible build/test environment, and observed baseline behavior.
+- [`INHERITED_UPSTREAM_BUGS.md`](INHERITED_UPSTREAM_BUGS.md) records confirmed
+  flaws that the Rust port intentionally preserves for behavioral parity.
 - [`UPSTREAM_INVENTORY.md`](UPSTREAM_INVENTORY.md) accounts for the material in
   the upstream tree and distinguishes authored, generated, and third-party
   files.

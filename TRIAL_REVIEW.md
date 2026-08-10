@@ -51,6 +51,10 @@ No reported parity finding was rejected outright. Two implementation shortcuts w
 
 Replay result: all recurring classes were checked against every pair; applicable gaps have regression coverage, and non-applicable cells do not expose the corresponding behavior.
 
+## Inherited upstream bugs
+
+The implementer, both reviewers, and the fixer checked apparent defects against the frozen Go source before proposing corrections. No confirmed upstream product bug was discovered in these three trial pairs, so this trial adds no entry to `INHERITED_UPSTREAM_BUGS.md`. The timing-sensitive baseline test failure remains recorded separately in `UPSTREAM_ORACLE.md`; it has not been promoted to the inherited-bug ledger without evidence that it is a product defect requiring Rust parity.
+
 ## Verification
 
 The fixer verification set is:

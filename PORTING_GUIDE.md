@@ -8,8 +8,13 @@ Do not clean up source behavior, introduce new abstractions, create placeholders
 
 For each file, one implementer ports source and adjacent tests but does not review. Designate at least Reviewer A and Reviewer B: heterogeneous agents working independently in separate fresh contexts. They receive identical ticket criteria, this guide, the exact Go/Rust/test pairs, and the diff, but no implementer rationale or other review report. Each reviewer is adversarial, assumes the port is wrong, only finds behavioral bugs or reasons it does not work, and reports file/line findings without implementing. Trial evidence records exact model assignments. A separate fixer who was not a reviewer receives every report, applies the smallest parity fixes, adds each recurring finding class to this guide, and replays that class against all three pairs. A human must approve this trial before bulk translation begins.
 
+This implementer → two adversarial reviewers → fixer loop is the review gate. Do not add separate standards or spec reviewer roles unless a human explicitly requests them.
+
+If implementation or review reveals an apparent bug in the frozen Go source, do not repair it in Rust. Reproduce it against the frozen oracle, have both independent reviewers confirm that it is inherited behavior rather than a translation defect, and record it in `INHERITED_UPSTREAM_BUGS.md` with its Go location, reproduction evidence, Rust counterpart, and parity test. The fixer must preserve the recorded behavior. Correcting an inherited bug requires a separate, explicitly authorized post-parity change.
+
 During review, apply these parity checks to every file in the batch:
 
+- Check every apparent defect against the frozen Go oracle before fixing it. Confirmed upstream defects belong in the inherited-bug ledger and in a Rust parity test; unconfirmed defects remain review findings, not ledger entries.
 - Wrapped errors must preserve both the Go-visible concatenated message and a traversable source chain. Error classifiers must match each Go sentinel exactly; do not broaden them to nearby platform error kinds, and test the distinct negative cases and the original error identity.
 - A Go type assertion for an optional capability must become an explicit Rust capability, never a trait default that silently means “unsupported.” Production implementations and test doubles must declare the capability, and tests must not weaken identity assertions because a double cannot reproduce it.
 - Audit parsing primitives rather than assuming similarly named Go and Rust parsers accept the same grammar, sign, base, overflow, or platform-width range. Map Go `int` to `isize` when its width is observable.
