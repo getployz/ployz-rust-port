@@ -1,0 +1,16 @@
+[package]
+name = "ployz"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+base64 = "0.22"
+nix = { version = "0.30", features = ["fs", "user"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "test-util", "time"] }
+tokio-util = "0.7"
+
+[dev-dependencies]
+serde_json = "1"
