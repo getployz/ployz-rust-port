@@ -1,0 +1,54 @@
+package operation
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/docker/docker/api/types/volume"
+	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/pkg/api"
+)
+
+// CreateVolumeOperation creates a volume on a specific machine.
+type CreateVolumeOperation struct {
+	VolumeSpec api.VolumeSpec
+	MachineID  string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName string
+}
+
+func (o *CreateVolumeOperation) Execute(ctx context.Context, cli Client) error {
+	if o.VolumeSpec.Type != api.VolumeTypeVolume {
+		return fmt.Errorf("invalid volume type: '%s', expected '%s'", o.VolumeSpec.Type, api.VolumeTypeVolume)
+	}
+
+	opts := volume.CreateOptions{
+		Name: o.VolumeSpec.DockerVolumeName(),
+	}
+	if o.VolumeSpec.VolumeOptions != nil {
+		if o.VolumeSpec.VolumeOptions.Driver != nil {
+			opts.Driver = o.VolumeSpec.VolumeOptions.Driver.Name
+			opts.DriverOpts = o.VolumeSpec.VolumeOptions.Driver.Options
+		}
+		opts.Labels = o.VolumeSpec.VolumeOptions.Labels
+	}
+
+	if _, err := cli.CreateVolume(ctx, o.MachineID, opts); err != nil {
+		return fmt.Errorf("create volume: %w", err)
+	}
+
+	return nil
+}
+
+func (o *CreateVolumeOperation) Format() string {
+	return fmt.Sprintf("%s create volume %s %s %s",
+		tui.BoldGreen.Render("+"),
+		tui.NameStyle.Render(o.VolumeSpec.DockerVolumeName()),
+		tui.Faint.Render("on"),
+		o.MachineName)
+}
+
+func (o *CreateVolumeOperation) String() string {
+	return fmt.Sprintf("CreateVolumeOperation[machine_id=%s volume=%s]",
+		o.MachineID, o.VolumeSpec.DockerVolumeName())
+}

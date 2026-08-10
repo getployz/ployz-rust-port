@@ -1,0 +1,188 @@
+package compose
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	composecli "github.com/compose-spec/compose-go/v2/cli"
+	"github.com/compose-spec/compose-go/v2/transform"
+	"github.com/compose-spec/compose-go/v2/tree"
+	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/pkg/api"
+)
+
+var registerComposeOverrides sync.Once
+
+// LoadProject loads a Compose project from the default locations or the given paths.
+func LoadProject(ctx context.Context, paths []string, opts ...composecli.ProjectOptionsFn) (*types.Project, error) {
+	registerComposeOverrides.Do(func() {
+		transform.RegisterDefaultValue("services.*.deploy.update_config", setUpdateConfigDefaults)
+		transform.RegisterDefaultValue("services.*.volumes.*.source", checkRelativeVolumeMount)
+		transform.RegisterDefaultValue("secrets.*", expandSecretCommandExtension)
+	})
+
+	defaultOpts := []composecli.ProjectOptionsFn{
+		// First apply os.Environment, always wins.
+		composecli.WithOsEnv,
+		// Set the local .env file to be loaded by WithDotEnv. COMPOSE_DISABLE_ENV_FILE can disable it.
+		composecli.WithEnvFiles(),
+		// Read environment variables from .env files set by WithEnvFiles (.env by default) to make available
+		// for interpolation.
+		composecli.WithDotEnv,
+		// Get compose file path set by COMPOSE_FILE.
+		composecli.WithConfigFileEnv,
+		// If none was selected, get default Compose file names from current or parent folders.
+		composecli.WithDefaultConfigPath,
+		composecli.WithExtension(CaddyExtensionKey, Caddy{}),
+		composecli.WithExtension(MachinesExtensionKey, MachinesSource{}),
+		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
+		composecli.WithExtension(PreDeployHookExtensionKey, PreDeployHook{}),
+	}
+
+	options, err := composecli.NewProjectOptions(
+		paths,
+		append(defaultOpts, opts...)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create compose parser options: %w", err)
+	}
+
+	project, err := options.LoadProject(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	removeProjectPrefixFromNames(project)
+	if project, err = transformServicesCaddyExtension(project); err != nil {
+		return nil, err
+	}
+	if project, err = transformServicesPortsExtension(project); err != nil {
+		return nil, err
+	}
+
+	// Validate extension combinations after all transformations.
+	if err = validateServicesExtensions(project); err != nil {
+		return nil, err
+	}
+
+	// Validate secrets and clear the transient 'external' marker set on command secrets during loading.
+	if err = validateSecrets(project); err != nil {
+		return nil, err
+	}
+
+	for _, err = range validateServicesFeatures(project) {
+		tui.PrintWarning(err.Error())
+	}
+
+	// Process image templates in services to expand Go template expressions using git repo state.
+	if project, err = ProcessImageTemplates(project); err != nil {
+		return nil, err
+	}
+
+	return project, nil
+}
+
+// LoadProjectFromContent loads a Compose project from the given YAML content.
+func LoadProjectFromContent(
+	ctx context.Context, content string, opts ...composecli.ProjectOptionsFn,
+) (*types.Project, error) {
+	// Create a temporary directory for the compose file.
+	tmpDir, err := os.MkdirTemp("", "uncloud-compose-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Write the YAML content to compose.yaml in the temporary directory.
+	composePath := filepath.Join(tmpDir, "compose.yaml")
+	if err := os.WriteFile(composePath, []byte(content), 0o644); err != nil {
+		return nil, fmt.Errorf("write compose file: %w", err)
+	}
+
+	return LoadProject(ctx, []string{composePath}, opts...)
+}
+
+// removeProjectPrefixFromNames removes the project name prefix from volume names.
+func removeProjectPrefixFromNames(project *types.Project) {
+	prefix := project.Name + "_"
+	for name, vol := range project.Volumes {
+		vol.Name = strings.TrimPrefix(vol.Name, prefix)
+		project.Volumes[name] = vol
+	}
+}
+
+// setUpdateConfigDefaults sets default values for deploy.update_config attributes when not specified in the compose file.
+func setUpdateConfigDefaults(data any, _ tree.Path, _ bool) (any, error) {
+	switch v := data.(type) {
+	case map[string]any:
+		if _, ok := v["monitor"]; !ok {
+			v["monitor"] = api.DefaultHealthMonitorPeriod.String()
+		}
+	}
+	return data, nil
+}
+
+// checkRelativeVolumeMount check if a volume mount uses a relative path.
+func checkRelativeVolumeMount(data any, _ tree.Path, _ bool) (any, error) {
+	source, ok := data.(string)
+	if !ok || filepath.IsAbs(source) {
+		return data, nil
+	}
+	// Only check actual paths, not volumes _names_
+	if strings.HasPrefix(source, ".") || strings.HasPrefix(source, "~") {
+		// uc run also warns against this
+		return nil, fmt.Errorf("invalid volume mount: bind mount source '%s' is relative. If you intended to pass a host "+
+			"directory or file, use absolute path, or configs might be better suited for this use case. "+
+			"See https://uncloud.run/docs/concepts/configs", source)
+	}
+
+	return data, nil
+}
+
+// expandSecretCommandExtension expands the 'x-command' secret shorthand to the long form 'driver: exec'. It also marks
+// driver-based secrets external so they pass compose-go's consistency check, which requires 'file' or 'environment'
+// for non-external secrets. User-defined external secrets are not allowed. validateSecrets clears the 'external' marker
+// after loading.
+func expandSecretCommandExtension(data any, p tree.Path, _ bool) (any, error) {
+	secret, ok := data.(map[string]any)
+	if !ok {
+		return data, nil
+	}
+
+	name := p.Last()
+	// We don't have a standalone secret entity in a cluster so external secrets don't make sense. Fail on any
+	// user-defined external secrets here so that we can be sure only driver-based secrets will be marked as external.
+	if ext, ok := secret["external"].(bool); ok && ext {
+		return nil, fmt.Errorf("secret '%s': external secrets are not supported", name)
+	}
+
+	if command, ok := secret[SecretCommandExtensionKey]; ok {
+		cmd, ok := command.(string)
+		if !ok || cmd == "" {
+			return nil, fmt.Errorf("secret '%s': '%s' must be a non-empty string", name, SecretCommandExtensionKey)
+		}
+		if secret["driver"] != nil || secret["driver_opts"] != nil {
+			return nil, fmt.Errorf("secret '%s': '%s' cannot be combined with 'driver' or 'driver_opts'",
+				name, SecretCommandExtensionKey)
+		}
+		if secret["file"] != nil || secret["environment"] != nil {
+			return nil, fmt.Errorf("secret '%s': '%s' cannot be combined with 'file' or 'environment'",
+				name, SecretCommandExtensionKey)
+		}
+
+		delete(secret, SecretCommandExtensionKey)
+		secret["driver"] = secretExecDriver
+		secret["driver_opts"] = map[string]string{"command": cmd}
+	}
+
+	if secret["driver"] != nil && secret["file"] == nil && secret["environment"] == nil {
+		secret["external"] = true
+	}
+
+	return secret, nil
+}

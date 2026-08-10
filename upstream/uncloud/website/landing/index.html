@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Uncloud | Multi-node Docker Compose for production</title>
+    <meta name="description"
+          content="Deploy and scale Docker Compose apps across cloud VMs and your own servers. A simpler alternative to Kubernetes, Swarm, Nomad, and Kamal.">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="canonical" href="https://uncloud.run">
+    <link href="./style.css" rel="stylesheet">
+    <link rel="apple-touch-icon" href="./images/apple-touch-icon.png" sizes="180x180"/>
+    <link rel="icon" type="image/svg+xml" href="./images/logo.svg"/>
+    <link rel="alternate icon" type="image/png" href="./images/favicon.png" sizes="96x96"/>
+
+    <!-- OpenGraph tags for social media -->
+    <meta property="og:title" content="Multi-node Docker Compose for production"/>
+    <meta property="og:description"
+          content="Deploy and scale Docker Compose apps across cloud VMs and your own servers. A simpler alternative to Kubernetes, Swarm, Nomad, and Kamal."/>
+    <meta property="og:image" content="https://uncloud.run/images/og.png"/>
+    <meta property="og:image:alt" content="Uncloud: multi-node Docker Compose for production"/>
+    <meta property="og:url" content="https://uncloud.run"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="Uncloud"/>
+    <!-- Twitter card tags -->
+    <meta property="twitter:domain" content="uncloud.run">
+    <meta property="twitter:url" content="https://uncloud.run">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Multi-node Docker Compose for production">
+    <meta name="twitter:description"
+          content="Deploy and scale Docker Compose apps across cloud VMs and your own servers. A simpler alternative to Kubernetes, Swarm, Nomad, and Kamal.">
+    <meta name="twitter:image" content="https://uncloud.run/images/og.png">
+    <meta name="twitter:image:alt" content="Uncloud: multi-node Docker Compose for production">
+
+    <script src="./js/posthog.js" defer></script>
+</head>
+
+<body class="font-inter antialiased bg-white text-zinc-900 tracking-tight">
+
+<!-- Page wrapper -->
+<div class="flex flex-col min-h-screen overflow-hidden supports-[overflow:clip]:overflow-clip">
+
+    <!-- Site header -->
+    <header class="absolute top-2 md:top-6 w-full z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+            <div class="flex items-center justify-between h-14">
+                <!-- Site branding -->
+                <div class="shrink-0 mr-4">
+                    <a class="flex items-center" href="/">
+                        <img class="w-8 h-8 rounded-lg shadow-sm shadow-zinc-950/20" src="./images/logo.svg" alt="Logo"
+                             width="32" height="32">
+                        <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
+                    </a>
+                </div>
+
+                <!-- Navigation links -->
+                <nav class="flex grow">
+                    <!-- Left side navigation -->
+                    <ul class="flex items-center">
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition inline-flex items-center"
+                               href="/hub">
+                                Hub
+                                <span class="inline-block ml-1 -translate-y-1.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded">
+                                    New
+                                </span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="/docs">Docs</a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="/blog">Blog</a>
+                        </li>
+                        <!-- Hidden on small screens to keep the nav from overflowing at 390px. -->
+                        <li class="hidden md:block">
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="https://psviderski.substack.com/" target="_blank">Newsletter</a>
+                        </li>
+                    </ul>
+                    <!-- Right side navigation -->
+                    <ul class="flex grow justify-end items-center shrink-0">
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 flex items-center transition"
+                               href="https://discord.gg/eR35KQJhPu">
+                                <svg class="w-4 h-4 sm:mr-1 fill-current" xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                                <span class="ml-1 hidden sm:inline">Discord</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-1 sm:px-5 py-2 flex items-center transition"
+                               href="https://github.com/psviderski/uncloud">
+                                <svg class="w-4 h-4 sm:mr-1 fill-current" xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                                </svg>
+                                <span class="ml-1 hidden sm:inline">GitHub</span>
+                                <!-- Populated only when the star count is successfully fetched from the GitHub API. -->
+                                <span class="js-github-stars text-zinc-400 ml-1 hidden sm:inline tabular-nums"></span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page content -->
+    <main class="grow">
+
+        <!-- Hero -->
+        <section
+                class="relative before:absolute before:inset-0 before:h-80 before:pointer-events-none before:bg-gradient-to-b before:from-zinc-100 before:-z-10">
+            <div class="pt-32 pb-12 md:pt-40 md:pb-20">
+                <!-- Section content -->
+                <div class="px-4 sm:px-6">
+                    <div class="max-w-3xl mx-auto">
+                        <div class="text-center pb-12 md:pb-16">
+                            <h1 class="font-inter-tight text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-zinc-500 via-zinc-900 to-zinc-900 pb-4">
+                                Multi-node Docker Compose for production
+                            </h1>
+                            <p class="text-lg text-zinc-500 mb-8">
+                                Deploy web apps across cloud servers or your own hardware without cluster-management
+                                overhead.
+                                Uncloud links your Docker hosts into a secure WireGuard network and gives you cross-host
+                                communication, zero-downtime deploys, and HTTPS out of the box.
+                            </p>
+                            <p class="text-base text-zinc-500 mb-8">
+                                A simpler alternative to
+                                <span class="font-medium text-zinc-700">Kubernetes</span>,
+                                <span class="font-medium text-zinc-700">Swarm</span>,
+                                <span class="font-medium text-zinc-700">Nomad</span>, and
+                                <span class="font-medium text-zinc-700">Kamal</span>.
+                            </p>
+                            <div class="max-w-xs mx-auto sm:max-w-none sm:inline-flex sm:justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                                <div>
+                                    <a class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 w-full shadow flex items-center justify-center"
+                                       href="/docs/getting-started/deploy-demo-app">
+                                        <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                             stroke-linejoin="round">
+                                            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+                                            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+                                            <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+                                            <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+                                        </svg>
+                                        Deploy your first app
+                                    </a>
+                                </div>
+                                <div>
+                                    <a class="btn text-zinc-600 bg-white hover:text-zinc-900 w-full shadow flex items-center justify-center"
+                                       href="https://github.com/psviderski/uncloud" target="_blank" rel="noopener">
+                                        <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                             stroke-linejoin="round">
+                                            <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z"/>
+                                        </svg>
+                                        Star on GitHub
+                                        <span class="js-github-stars ml-2 text-sm font-normal text-zinc-400 tabular-nums"></span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Demo screencast -->
+                <div class="max-w-6xl mx-auto px-4 sm:px-6 flex justify-center pb-12 md:pb-20 relative before:absolute before:-top-12 before:left-1/2 before:-translate-x-1/2 before:w-96 before:h-96 before:bg-zinc-900 before:opacity-[.15] before:rounded-full before:blur-3xl before:-z-10">
+                    <video class="block w-full rounded-lg shadow-2xl"
+                           controls playsinline preload="metadata"
+                           aria-label="Demo: build, push, and deploy an app to two servers with a Compose file"
+                           poster="https://media.uncloud.run/uc-deploy-demo.webp">
+                        <source src="https://media.uncloud.run/uc-deploy-demo.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+
+                <!-- Stats -->
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="max-w-sm mx-auto grid gap-12 sm:grid-cols-2 md:grid-cols-4 md:-mx-5 md:gap-0 items-start md:max-w-none">
+                        <!-- GitHub stars -->
+                        <a href="https://github.com/psviderski/uncloud" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span
+                                    x-data="counter(githubStarsK)" x-text="counterValue">5.2</span>K+</h4>
+                            <p class="text-zinc-500 transition-colors group-hover:text-zinc-800">GitHub
+                                stars</p>
+                        </a>
+
+                        <!-- Downloads -->
+                        <a href="https://github.com/psviderski/uncloud/releases" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span
+                                    x-data="counter(downloadsK)" x-text="counterValue">21</span>K+</h4>
+                            <p class="text-zinc-500 transition-colors group-hover:text-zinc-800">Downloads</p>
+                        </a>
+
+                        <!-- Hacker News front-page -->
+                        <a href="https://news.ycombinator.com/item?id=46144275" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span
+                                    x-data="counter(2)" x-text="counterValue">2</span>x</h4>
+                            <p class="text-zinc-500 transition-colors group-hover:text-zinc-800">Hacker News
+                                front page</p>
+                        </a>
+
+                        <!-- Discord members. -->
+                        <a href="https://uncloud.run/discord" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span
+                                    x-data="counter(390)" x-text="counterValue">390</span>+</h4>
+                            <p class="text-zinc-500 transition-colors group-hover:text-zinc-800">Fans on
+                                Discord</p>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonial -->
+        <section class="relative bg-zinc-900 overflow-hidden">
+            <!-- Soft glow echoing the hero. -->
+            <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+                <div class="absolute left-1/2 top-0 w-[36rem] h-[36rem] -translate-x-1/2 -translate-y-1/3 rounded-full bg-zinc-700 opacity-20 blur-3xl"></div>
+            </div>
+            <div class="relative max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="py-16 md:py-24">
+                    <figure class="max-w-3xl mx-auto text-center">
+                        <span class="block font-inter-tight text-7xl leading-none text-zinc-700 select-none"
+                              aria-hidden="true">&ldquo;</span>
+                        <blockquote
+                                class="-mt-5 font-inter-tight text-2xl sm:text-3xl lg:text-4xl font-medium leading-snug text-balance text-zinc-400">
+                            We’re moving <span class="text-zinc-100">300+ websites</span> onto
+                            <span class="text-zinc-100">a dozen Uncloud machines</span>, where each owner gets their own
+                            machines to run whatever they need.
+                        </blockquote>
+                        <a class="group inline-flex items-center gap-1.5 mt-6 text-sm font-medium text-zinc-300 underline decoration-zinc-400 underline-offset-4 hover:text-zinc-100 hover:decoration-zinc-100 transition-colors"
+                           href="https://cncz.science.ru.nl/news/2026-04-15_uncloud/" target="_blank" rel="noopener">
+                            Read Radboud University’s announcement
+                            <svg class="w-4 h-4 shrink-0 no-underline transition-transform group-hover:translate-x-0.5"
+                                 fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/>
+                            </svg>
+                        </a>
+                        <figcaption class="mt-10 flex items-center justify-center gap-4">
+                            <img class="w-14 h-14 rounded-full shadow-lg shadow-zinc-950/40"
+                                 src="https://avatars.githubusercontent.com/u/353371?v=4"
+                                 width="56" height="56" loading="lazy" decoding="async" alt="Miek Gieben">
+                            <div class="text-left">
+                                <div class="font-inter-tight font-semibold text-zinc-100">Miek Gieben</div>
+                                <div class="text-sm text-zinc-400">
+                                    Creator of CoreDNS · ex-Google SRE · Radboud University
+                                </div>
+                            </div>
+                        </figcaption>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
+        <!-- Workflow: chess-layout feature blocks. Each row alternates text/terminal. -->
+        <section id="workflow" class="relative bg-white">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6 space-y-16 md:space-y-28">
+
+                    <div class="max-w-3xl mx-auto text-center">
+                        <h2 class="font-inter-tight text-4xl md:text-5xl font-bold text-zinc-900 mb-4">
+                            Enjoy a Heroku-like workflow on your own servers
+                        </h2>
+                    </div>
+
+                    <!-- 01 · Create a cluster (text left, terminal right) -->
+                    <article class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+                        <div class="lg:max-w-md">
+                            <div class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-zinc-600 mb-4">
+                                Create a cluster
+                            </div>
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                Turn any Linux machines into a Docker cluster
+                            </h2>
+                            <p class="text-lg text-zinc-500 mb-6">
+                                Uncloud creates a lightweight decentralised cluster of Docker hosts that share their
+                                state peer-to-peer. The cluster keeps running even if some machines go down.
+                                <br><br>
+                                Each machine joins a secure WireGuard mesh network, so services can talk to each other
+                                across machines.
+                            </p>
+                            <ul class="space-y-3 text-zinc-500">
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Mix cloud VMs and bare-metal servers
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    No control plane or quorum to maintain
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Cheap enough to run a cluster per team, project, or client
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    SSH is all you need
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="rounded-xl bg-zinc-950 border border-zinc-800 shadow-2xl shadow-zinc-950/40 overflow-hidden"
+                             role="img"
+                             aria-label="Terminal: uc machine init installs Docker and Uncloud on the first machine over SSH and initialises the cluster, uc machine add joins a second machine over WireGuard, and uc machine ls lists both machines as ready.">
+                            <div class="flex items-center gap-2 px-4 py-3.5 bg-zinc-900">
+                                <span class="w-3 h-3 rounded-full bg-[#e05a4f]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#e0a552]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#5bbf6a]"></span>
+                            </div>
+                            <pre class="font-mono text-[13px] leading-relaxed text-zinc-400 p-5 overflow-x-auto"><span
+                                    class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc machine init</span> --name prod-1 root@137.123.45.67
+...
+<span class="text-green-500">✔</span> Docker installed and configured
+<span class="text-green-500">✔</span> Uncloud machine daemon installed and started
+Cluster initialised with machine <span class="text-zinc-200">prod-1</span> and saved as context <span
+                                        class="text-zinc-200">default</span>
+in your local config (~/.config/uncloud/config.yaml)
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc machine add</span> --name prod-2 ubuntu@65.21.45.67
+...
+<span class="text-green-500">✔</span> Uncloud machine daemon installed and started
+Machine <span class="text-zinc-200">prod-2</span> joined the cluster.
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc machine ls</span>
+<span class="font-medium text-zinc-200">NAME    STATE  ADDRESS        PUBLIC IP      WIREGUARD ENDPOINTS</span>
+prod-1  <span class="text-green-500">Up</span>     10.210.0.1/24  137.123.45.67  10.0.0.95:51820, 137.123.45.67:51820
+prod-2  <span class="text-green-500">Up</span>     10.210.1.1/24  65.21.45.67    192.168.40.243:51820, 65.21.45.67:51820</pre>
+                        </div>
+
+                        <blockquote class="lg:col-start-2 border-l-[3px] border-zinc-400 pl-5">
+                            <p class="text-zinc-600">
+                                &ldquo;In my opinion, Swarm is dead, Nomad is not anymore a free software since it was
+                                bought by IBM. So the only robust alternative to the bloat of K8s is Uncloud.&rdquo;
+                            </p>
+                            <cite class="block mt-3 text-sm not-italic text-zinc-500">
+                                <a class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900 hover:decoration-zinc-400 transition-colors"
+                                   href="https://discord.com/channels/1371726032104587335/1371726032838594565/1462397723834712118"
+                                   target="_blank" rel="noopener">Frédéric Logier (@fredix)</a>
+                            </cite>
+                        </blockquote>
+                    </article>
+
+                    <!-- 02 · Deploy (terminal left, text right). -->
+                    <article class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+                        <div class="lg:max-w-md lg:col-start-2 lg:row-start-1">
+                            <div class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-zinc-600 mb-4">
+                                Build, push, deploy
+                            </div>
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                Deploy local Compose to production with one command
+                            </h2>
+                            <p class="text-lg text-zinc-500 mb-6">
+                                Run <code>uc deploy</code> with your standard <code>compose.yaml</code>. It builds the
+                                images, pushes them straight to your machines (transferring only the missing layers),
+                                and shows a plan of exactly what will change. Confirm, and it rolls out with zero
+                                downtime. And all this takes seconds.
+                            </p>
+                            <ul class="space-y-3 text-zinc-500">
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Standard Compose format, no new spec to learn
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    <span>No registry to set up, pay for, or authenticate against. Powered by
+                                        <a class="text-zinc-700 underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900 hover:decoration-zinc-400 transition-colors"
+                                           href="https://github.com/psviderski/unregistry" target="_blank"
+                                           rel="noopener">Unregistry</a></span>
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Terraform-style plan: review every change before applying
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Zero-downtime rolling updates with health checks
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Run locally or in your CI/CD pipelines
+                                </li>
+                            </ul>
+
+                            <blockquote class="mt-12 lg:mt-16 border-l-[3px] border-zinc-400 pl-5">
+                                <p class="text-zinc-600">
+                                    &ldquo;Uncloud checks almost all the boxes for me: an imperative push model,
+                                    Compose Specification, WireGuard out of the box, Caddy out of the box, Unregistry
+                                    (a big one), and a great CLI UX with excellent documentation.&rdquo;
+                                </p>
+                                <cite class="block mt-3 text-sm not-italic text-zinc-500">
+                                    <a class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900 hover:decoration-zinc-400 transition-colors"
+                                       href="https://discord.com/channels/1371726032104587335/1371726032838594565/1462873791402213477"
+                                       target="_blank" rel="noopener">@pvalders</a>
+                                </cite>
+                            </blockquote>
+                        </div>
+
+                        <div class="lg:col-start-1 lg:row-start-1 rounded-xl bg-zinc-950 border border-zinc-800 shadow-2xl shadow-zinc-950/40 overflow-hidden"
+                             role="img"
+                             aria-label="Terminal: cat compose.yaml shows a web service that builds from the local Dockerfile and runs two replicas, then a single uc deploy command builds the image, pushes it to both machines without a registry, shows a deployment plan that replaces two web containers, asks for confirmation, and performs a zero-downtime rolling update.">
+                            <div class="flex items-center gap-2 px-4 py-3.5 bg-zinc-900">
+                                <span class="w-3 h-3 rounded-full bg-[#e05a4f]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#e0a552]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#5bbf6a]"></span>
+                            </div>
+                            <pre class="font-mono text-[13px] leading-relaxed text-zinc-400 p-5 overflow-x-auto"><span
+                                    class="font-bold text-green-500">$</span> <span class="text-zinc-200">cat compose.yaml</span>
+services:
+  web:
+    build: .
+    scale: 2
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc deploy</span>
+<span class="text-blue-500">[+] Building 1/1</span>
+ <span class="text-green-500">✔</span> <span class="text-zinc-200">app/web:2026-04-23-053642.833b6c1</span>  <span
+                                        class="text-green-500">Built</span>
+
+<span class="text-blue-500">[+] Pushing image</span> <span
+                                        class="text-zinc-200">app/web:2026-04-23-053642.833b6c1</span> <span
+                                        class="text-blue-500">to cluster 2/2</span>
+ <span class="text-green-500">✔</span> Pushing <span
+                                        class="text-zinc-200">app/web:2026-04-23-053642.833b6c1</span> to <span
+                                        class="text-zinc-200">prod-1</span>  <span class="text-green-500">Pushed</span>
+ <span class="text-green-500">✔</span> Pushing <span
+                                        class="text-zinc-200">app/web:2026-04-23-053642.833b6c1</span> to <span
+                                        class="text-zinc-200">prod-2</span>  <span class="text-green-500">Pushed</span>
+
+<span class="text-zinc-200 underline">Deployment plan</span>
+<span class="font-bold text-yellow-500">~</span> update service <span class="text-zinc-200">web</span>
+  │ <span class="font-bold text-yellow-500">~</span> image: <span class="text-zinc-200">app/web</span>:<span
+                                        class="text-red-500">2026-04-10-070838.07e380b</span> → <span
+                                        class="text-green-500">2026-04-23-053642.833b6c1</span>
+  │   replicas: <span class="text-zinc-200">2</span>
+  ├── <span class="font-bold text-green-500">+/-</span> replace container <span
+                                        class="text-zinc-200">web/2de0ebf7eld5</span> on <span
+                                        class="text-zinc-200">prod-1</span>
+  ╰── <span class="font-bold text-green-500">+/-</span> replace container <span
+                                        class="text-zinc-200">web/4c908f74ced5</span> on <span
+                                        class="text-zinc-200">prod-2</span>
+<span class="text-zinc-600">───────────────────────────────────────────</span>
+<span class="text-green-500">2 replace (start-first)</span> · across <span class="text-zinc-200">2</span> machines
+
+<span class="font-bold text-yellow-500">Proceed with deployment?</span> <span class="text-zinc-200">[y/N] y</span>
+
+<span class="text-blue-500">[+] Deploying 4/4</span>
+ <span class="text-green-500">✔</span> Container <span class="text-zinc-200">web/5e2becd8ba1b</span> on <span
+                                        class="text-zinc-200">prod-1</span>  <span class="text-green-500">Healthy</span>
+ <span class="text-green-500">✔</span> Container <span class="text-zinc-200">web/2de0ebf7eld5</span> on <span
+                                        class="text-zinc-200">prod-1</span>  <span class="text-green-500">Removed</span>
+ <span class="text-green-500">✔</span> Container <span class="text-zinc-200">web/c086013b5879</span> on <span
+                                        class="text-zinc-200">prod-2</span>  <span class="text-green-500">Healthy</span>
+ <span class="text-green-500">✔</span> Container <span class="text-zinc-200">web/4c908f74ced5</span> on <span
+                                        class="text-zinc-200">prod-2</span>  <span class="text-green-500">Removed</span></pre>
+                        </div>
+                    </article>
+
+                    <!-- 03 · Publish (text left, terminal right). -->
+                    <article class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+                        <div class="lg:max-w-md">
+                            <div class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-zinc-600 mb-4">
+                                Publish
+                            </div>
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                Connect and publish your services
+                            </h2>
+                            <p class="text-lg text-zinc-500 mb-6">
+                                Services on different machines reach each other by name over a private WireGuard mesh,
+                                so your database never needs a public port. Publish the ones that should be public, and
+                                the integrated Caddy handles HTTPS automatically.
+                            </p>
+                            <ul class="space-y-3 text-zinc-500">
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Cross-machine communication and load balancing
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Caddy keeps its config up to date on any container change
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-4 h-4 text-zinc-400 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="m9 5 7 7-7 7"/>
+                                    </svg>
+                                    Certificates issued and renewed automatically
+                                </li>
+                            </ul>
+
+                            <img class="w-full mt-10" src="./images/ingress-diagram.svg"
+                                 alt="Diagram: users connect over HTTPS to the Caddy ingress, which load balances requests to web service replicas on both machines, while web connects to the db service over the internal network.">
+                        </div>
+
+                        <!-- The min-w-0 lets the grid track shrink below the pre content width. -->
+                        <div class="min-w-0">
+                            <div class="rounded-xl bg-zinc-950 border border-zinc-800 shadow-2xl shadow-zinc-950/40 overflow-hidden"
+                                 role="img"
+                                 aria-label="compose.yaml: a web service with two replicas connects to the db service by name via DATABASE_URL and publishes app.example.com over HTTPS with x-ports, while db runs postgres:18 and stays private inside the WireGuard mesh.">
+                                <div class="relative flex items-center gap-2 px-4 py-3.5 bg-zinc-900">
+                                    <span class="w-3 h-3 rounded-full bg-[#e05a4f]"></span>
+                                    <span class="w-3 h-3 rounded-full bg-[#e0a552]"></span>
+                                    <span class="w-3 h-3 rounded-full bg-[#5bbf6a]"></span>
+                                    <span class="absolute left-1/2 -translate-x-1/2 font-mono text-xs text-zinc-400">compose.yaml</span>
+                                </div>
+                                <pre class="font-mono text-[13px] leading-relaxed text-zinc-400 p-5 overflow-x-auto"><span
+                                        class="text-green-400">services</span>:
+  <span class="text-green-400">web</span>:
+    <span class="text-green-400">build</span>: <span class="text-sky-300">.</span>
+    <span class="text-green-400">environment</span>:
+      <span class="text-zinc-500"># Reach db on another machine by its service name.</span>
+      <span class="text-green-400">DATABASE_URL</span>: <span class="text-sky-300">postgres://db:5432/app</span>
+    <span class="text-zinc-500"># Uncloud-specific extension to publish via the Caddy ingress.</span>
+    <span class="text-green-400">x-ports</span>:
+      - <span class="text-sky-300">app.example.com:8080/https</span>
+    <span class="text-green-400">scale</span>: <span class="text-sky-300">2</span>  <span class="text-zinc-500"># Two replicas spread across machines.</span>
+
+  <span class="text-green-400">db</span>:
+    <span class="text-green-400">image</span>: <span class="text-sky-300">postgres:18</span>
+    <span class="text-green-400">volumes</span>:
+      - <span class="text-sky-300">db-data:/var/lib/postgresql</span></pre>
+                            </div>
+
+                            <blockquote class="mt-12 lg:mt-16 border-l-[3px] border-zinc-400 pl-5">
+                                <p class="text-zinc-600">
+                                    &ldquo;Before Uncloud, I was already using Wireguard, Caddy and docker-compose.
+                                    Now I just have a simpler way to set it up and have it all be almost-automatically
+                                    managed, plus I get DNS resolution for microservices for free.&rdquo;
+                                </p>
+                                <cite class="block mt-3 text-sm not-italic text-zinc-500">
+                                    <a class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900 hover:decoration-zinc-400 transition-colors"
+                                       href="https://discord.com/channels/1371726032104587335/1371726032838594565/1462099668530892800"
+                                       target="_blank" rel="noopener">Paweł Zmarzły (@szawo)</a>
+                                </cite>
+                            </blockquote>
+                        </div>
+                    </article>
+
+                    <!-- 04 · Scale (terminal left, text right). -->
+                    <article class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+                        <div class="lg:max-w-md lg:col-start-2 lg:row-start-1">
+                            <div class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-zinc-600 mb-4">
+                                Scale
+                            </div>
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                Scale and grow without the ops overhead
+                            </h2>
+                            <p class="text-lg text-zinc-500 mb-6">
+                                Run more replicas spread across machines for high availability. If a machine goes
+                                down, the remaining replicas keep serving requests. Need capacity? Add a machine.
+                                Retiring one? Remove it and redeploy.
+                            </p>
+                            <p class="text-lg text-zinc-500">
+                                Nothing scales or reschedules on its own. It's predictable, boring infrastructure
+                                for your peace of mind.
+                            </p>
+                        </div>
+
+                        <div class="lg:col-start-1 lg:row-start-1 rounded-xl bg-zinc-950 border border-zinc-800 shadow-2xl shadow-zinc-950/40 overflow-hidden"
+                             role="img"
+                             aria-label="Terminal: uc machine add joins a third machine to the cluster, uc scale web 3 shows a scaling plan that adds one web container on the new machine, and uc ls lists the caddy, db, and web services with web scaled to three replicas.">
+                            <div class="flex items-center gap-2 px-4 py-3.5 bg-zinc-900">
+                                <span class="w-3 h-3 rounded-full bg-[#e05a4f]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#e0a552]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#5bbf6a]"></span>
+                            </div>
+                            <pre class="font-mono text-[13px] leading-relaxed text-zinc-400 p-5 overflow-x-auto"><span
+                                    class="font-bold text-green-500">$</span> <span
+                                    class="text-zinc-200">uc machine add</span> --name prod-3 root@201.45.91.123
+...
+Machine <span class="text-zinc-200">prod-3</span> joined the cluster.
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc scale web 3</span>
+<span class="text-zinc-200 underline">Scaling plan</span>
+<span class="font-bold text-yellow-500">~</span> update service <span class="text-zinc-200">web</span>
+  │ <span class="font-bold text-yellow-500">~</span> replicas: <span class="text-red-500">2</span> → <span
+                                        class="text-green-500">3</span>
+  ╰── <span class="font-bold text-green-500">+</span>   run container <span class="text-zinc-200">web</span> on <span
+                                        class="text-zinc-200">prod-3</span>
+<span class="text-zinc-600">───────────────────────────</span>
+<span class="text-green-500">1 create</span> · across <span class="text-zinc-200">1</span> machine
+
+<span class="font-bold text-yellow-500">Proceed with scaling?</span> <span class="text-zinc-200">[y/N] y</span>
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc ls</span>
+<span class="font-medium text-zinc-200">NAME   MODE        REPLICAS  ENDPOINTS</span>
+caddy  global      3
+db     replicated  1
+web    replicated  3         https://app.example.com → :8080</pre>
+                        </div>
+                    </article>
+
+                    <!-- 05 Troubleshoot -->
+                    <article class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+                        <div class="lg:max-w-md">
+                            <div class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-zinc-600 mb-4">
+                                Troubleshoot
+                            </div>
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                Troubleshoot with tools you already know
+                            </h2>
+                            <p class="text-lg text-zinc-500 mb-6">
+                                When something breaks, use <code>uc</code> to list containers, read logs, and inspect
+                                both the WireGuard network and the live Caddy config. Or SSH in and use the familiar
+                                Docker and Linux tools. It's just Docker, WireGuard and Caddy underneath, exactly as
+                                you'd expect.
+                            </p>
+
+                            <blockquote class="mt-12 lg:mt-16 border-l-[3px] border-zinc-400 pl-5">
+                                <p class="text-zinc-600">
+                                    &ldquo;It's all built on top of simple and familiar technologies. &hellip; This
+                                    gives me confidence that if something goes wrong, I will be able to debug myself.
+                                    I cannot say the same for SwarmKit or etcd.&rdquo;
+                                </p>
+                                <cite class="block mt-3 text-sm not-italic text-zinc-500">
+                                    <a class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900 hover:decoration-zinc-400 transition-colors"
+                                       href="https://discord.com/channels/1371726032104587335/1371726032838594565/1462099668530892800"
+                                       target="_blank" rel="noopener">Paweł Zmarzły (@szawo)</a>
+                                </cite>
+                            </blockquote>
+                        </div>
+
+                        <div class="rounded-xl bg-zinc-950 border border-zinc-800 shadow-2xl shadow-zinc-950/40 overflow-hidden"
+                             role="img"
+                             aria-label="Terminal: uc logs follows web service logs across machines, uc caddy config shows the generated Caddyfile, uc exec pings the db service from a web container, uc wg show lists WireGuard peers with handshakes and RTT, and a plain docker ps over SSH inspects a machine directly.">
+                            <div class="flex items-center gap-2 px-4 py-3.5 bg-zinc-900">
+                                <span class="w-3 h-3 rounded-full bg-[#e05a4f]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#e0a552]"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#5bbf6a]"></span>
+                            </div>
+                            <pre class="font-mono text-[13px] leading-relaxed text-zinc-400 p-5 overflow-x-auto"><span
+                                    class="font-bold text-green-500">$</span> <span
+                                    class="text-zinc-200">uc logs -f web</span>
+<span class="text-zinc-600">Jun 11 09:14:02.113</span> <span class="font-bold text-sky-300">prod-1</span> <span
+                                        class="font-bold">web</span><span class="text-zinc-600">/5e2be</span> GET /api/products 200 12ms
+<span class="text-zinc-600">Jun 11 09:14:02.864</span> <span class="font-bold text-green-400">prod-3</span> <span
+                                        class="font-bold">web</span><span class="text-zinc-600">/9f1c2</span> GET /healthz 200 1ms
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc caddy config</span>
+<span class="text-zinc-200">app.example.com</span> {
+    reverse_proxy 10.210.0.5:8080 10.210.1.7:8080 10.210.2.4:8080
+}
+...
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc exec web -- ping -c1 db</span>
+PING db (10.210.1.3): 56 data bytes
+64 bytes from 10.210.1.3: seq=0 ttl=64 time=1.42 ms
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">uc wg show --machine prod-1</span>
+<span class="font-medium text-zinc-200">PEER    ENDPOINT             HANDSHAKE  RTT    RECEIVED  SENT</span>
+prod-2  65.21.45.67:51820    14s ago    3ms    27.51MB   40.69MB
+prod-3  201.45.91.123:51820  1m56s ago  11ms   5.12MB    9.34MB
+
+<span class="font-bold text-green-500">$</span> <span class="text-zinc-200">ssh root@prod-1 docker ...</span>
+</pre>
+                        </div>
+                    </article>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Uncloud Hub -->
+        <section class="relative bg-violet-50 border-y border-violet-100">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+                        <div class="lg:max-w-md lg:col-start-2 lg:row-start-1">
+                            <div class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-violet-600 mb-4">
+                                Coming soon
+                            </div>
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                <span class="text-violet-600">Uncloud Hub</span>: see what's happening in
+                                production
+                            </h2>
+                            <p class="text-lg text-zinc-500 mb-6">
+                                A hosted dashboard and observability stack for your Uncloud clusters. Connect a
+                                cluster and get metrics, logs, and alerts for every service and machine, without
+                                building and monitoring the monitoring yourself.
+                            </p>
+                            <div class="flex flex-wrap items-center gap-x-6 gap-y-4">
+                                <a class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 shadow"
+                                   href="/hub">Learn about Hub</a>
+                                <a class="text-sm font-medium text-violet-700 hover:text-violet-900 transition"
+                                   href="/hub#early-access">Get early access &rarr;</a>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-start-1 lg:row-start-1 rounded-xl overflow-hidden border border-zinc-200 shadow-2xl shadow-zinc-950/10">
+                            <img src="./images/hub-hero.webp" width="2560" height="1520"
+                                 alt="Uncloud Hub cluster overview dashboard, design preview"
+                                 class="w-full block" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq" class="relative bg-zinc-50">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="max-w-2xl mx-auto">
+                        <div class="text-center pb-8 md:pb-12">
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                Frequently asked questions
+                            </h2>
+                            <p class="text-lg text-zinc-500">
+                                Have another questions? Ask us on
+                                <a class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900 hover:decoration-zinc-400 transition-colors"
+                                   href="https://uncloud.run/discord" target="_blank" rel="noopener">Discord</a>.
+                            </p>
+                        </div>
+
+                        <div class="divide-y divide-zinc-200 border-y border-zinc-200">
+                            <details class="group">
+                                <summary
+                                        class="flex items-center justify-between gap-4 py-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden font-inter-tight font-semibold text-zinc-900">
+                                    <span>How is this different from Docker Swarm?</span>
+                                    <svg class="w-5 h-5 shrink-0 text-zinc-400 transition-transform duration-200 group-open:rotate-45"
+                                         fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                         aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/>
+                                    </svg>
+                                </summary>
+                                <p class="text-zinc-500 leading-relaxed pb-5">
+                                    Swarm needs a Raft quorum of manager nodes and has been in maintenance mode for
+                                    years. Uncloud has no control plane at all. Machines sync state peer to peer, and
+                                    any subset keeps working. You also get WireGuard networking across clouds and even
+                                    behind NAT, automatic HTTPS via Caddy, and image push without a registry. Swarm
+                                    gives you none of that out of the box.
+                                </p>
+                            </details>
+
+                            <details class="group">
+                                <summary
+                                        class="flex items-center justify-between gap-4 py-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden font-inter-tight font-semibold text-zinc-900">
+                                    <span>What happens when a machine goes down?</span>
+                                    <svg class="w-5 h-5 shrink-0 text-zinc-400 transition-transform duration-200 group-open:rotate-45"
+                                         fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                         aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/>
+                                    </svg>
+                                </summary>
+                                <p class="text-zinc-500 leading-relaxed pb-5">
+                                    The rest of the cluster keeps working. There's no control plane to lose, and
+                                    healthy replicas on other machines keep serving traffic. Uncloud deliberately
+                                    doesn't auto-reschedule containers. You decide when to replace the machine and
+                                    redeploy, so nothing unpredictable happens without your control.
+                                </p>
+                            </details>
+
+                            <details class="group">
+                                <summary
+                                        class="flex items-center justify-between gap-4 py-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden font-inter-tight font-semibold text-zinc-900">
+                                    <span>Will it replace my CI/CD?</span>
+                                    <svg class="w-5 h-5 shrink-0 text-zinc-400 transition-transform duration-200 group-open:rotate-45"
+                                         fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                         aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/>
+                                    </svg>
+                                </summary>
+                                <p class="text-zinc-500 leading-relaxed pb-5">
+                                    No, and that's deliberate. <code>uc</code>
+                                    is just a CLI that connects to your cluster over SSH. Run <code>uc deploy</code>
+                                    locally or in GitHub Actions to integrate with existing workflows.
+                                    There are no agents to install and no pipelines to migrate.
+                                </p>
+                            </details>
+
+                            <details class="group">
+                                <summary
+                                        class="flex items-center justify-between gap-4 py-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden font-inter-tight font-semibold text-zinc-900">
+                                    <span>Do I need Hub to use Uncloud?</span>
+                                    <svg class="w-5 h-5 shrink-0 text-zinc-400 transition-transform duration-200 group-open:rotate-45"
+                                         fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                         aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/>
+                                    </svg>
+                                </summary>
+                                <p class="text-zinc-500 leading-relaxed pb-5">
+                                    No, Uncloud is open source and fully functional on its own without Hub. You can use
+                                    the CLI to manage your clusters and deploy your apps across servers from Compose
+                                    files. You keep full control over your servers. Hub adds a web UI and an
+                                    observability stack on top so you don't have to build and manage one yourself.
+                                </p>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Newsletter subscription -->
+        <section class="relative bg-white">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="max-w-2xl mx-auto text-center">
+                        <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                            Follow the development journey
+                        </h2>
+                        <p class="text-lg text-zinc-500">
+                            Subscribe to get early insights into new features.
+                            See <a class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900 hover:decoration-zinc-400 transition-colors"
+                                   href="https://psviderski.substack.com/" target="_blank" rel="noopener">previous
+                            newsletters</a>.
+                        </p>
+                        <div class="mt-6 md:mt-8 flex justify-center">
+                            <iframe src="https://psviderski.substack.com/embed?transparent=true" width="480"
+                                    height="160" title="Subscribe to the Uncloud newsletter" class="w-full max-w-[480px]"
+                                    style="border:none; background:transparent;" frameborder="0"
+                                    scrolling="no"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final CTA -->
+        <section class="relative bg-zinc-900 overflow-hidden">
+            <!-- Soft glow echoing the testimonial section. -->
+            <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+                <div class="absolute left-1/2 top-0 w-[36rem] h-[36rem] -translate-x-1/2 -translate-y-1/3 rounded-full bg-zinc-700 opacity-20 blur-3xl"></div>
+            </div>
+            <div class="relative max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="py-16 md:py-24 text-center">
+                    <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-100 text-balance mb-8">
+                        Ready to make deploying to your own servers fun?
+                    </h2>
+                    <div class="max-w-xs mx-auto sm:max-w-none sm:inline-flex sm:justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div>
+                            <a class="btn text-zinc-900 bg-zinc-100 hover:bg-white w-full shadow flex items-center justify-center"
+                               href="https://uncloud.run/docs/getting-started/deploy-demo-app/">
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                     stroke-linejoin="round">
+                                    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+                                    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+                                    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+                                    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+                                </svg>
+                                Deploy your first app
+                            </a>
+                        </div>
+                        <div>
+                            <a class="btn text-zinc-100 bg-zinc-700/60 border-zinc-600 hover:bg-zinc-700 w-full shadow flex items-center justify-center"
+                               href="https://uncloud.run/discord" target="_blank" rel="noopener">
+                                <svg class="w-5 h-5 mr-2 fill-current" xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                                Join Discord
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Site footer -->
+    <footer>
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+            <!-- Top area: Blocks -->
+            <div class="grid sm:grid-cols-12 gap-8 py-8 md:py-12 border-t border-zinc-200">
+                <!-- 1st block - Brand -->
+                <div class="sm:col-span-6 md:col-span-6 lg:col-span-8 max-md:order-1 flex flex-col">
+                    <div class="mb-4">
+                        <!-- Logo -->
+                        <a class="flex items-center" href="/">
+                            <img class="w-8 h-8 rounded shadow-sm shadow-zinc-950/20" src="./images/logo.svg"
+                                 alt="Logo">
+                            <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
+                        </a>
+                    </div>
+                    <div class="grow text-sm text-zinc-500">
+                        Made with ❤️ by
+                        <a class="underline hover:text-zinc-900" href="https://github.com/psviderski">
+                            Pasha Sviderski
+                        </a>
+                        in Australia
+                    </div>
+
+                    <!-- Social links -->
+                    <ul class="flex space-x-4 mt-4 mb-1">
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu" aria-label="Discord">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://x.com/psviderski" aria-label="X/Twitter">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="m7.063 3 3.495 4.475L14.601 3h2.454l-5.359 5.931L18 17h-4.938l-3.866-4.893L4.771 17H2.316l5.735-6.342L2 3h5.063Zm-.74 1.347H4.866l8.875 11.232h1.36L6.323 4.347Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://t.me/spyyy" aria-label="Telegram">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="M17.968 3.276a.338.338 0 0 0-.232-.253 1.192 1.192 0 0 0-.63.045S3.087 8.106 2.286 8.664c-.172.121-.23.19-.259.272-.138.4.293.573.293.573l3.613 1.177a.388.388 0 0 0 .183-.011c.822-.519 8.27-5.222 8.7-5.38.068-.02.118 0 .1.049-.172.6-6.606 6.319-6.64 6.354a.138.138 0 0 0-.05.118l-.337 3.528s-.142 1.1.956 0a30.66 30.66 0 0 1 1.9-1.738c1.242.858 2.58 1.806 3.156 2.3a1 1 0 0 0 .732.283.825.825 0 0 0 .7-.622S17.894 5.292 17.98 3.909c.008-.135.021-.217.021-.317a1.177 1.177 0 0 0-.032-.316Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud" aria-label="GitHub">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                                </svg>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 2nd block - Documentation -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Documentation</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/docs/#use-cases">Use cases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/docs/getting-started/deploy-demo-app">Quick start</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/blog">Blog</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 3rd block - Resources -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Resources</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud">GitHub project</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/releases">Releases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/blob/main/LICENSE">License</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu">Community</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</div>
+
+<script src="./js/vendors/alpinejs.min.js" defer></script>
+<script>
+    (function () {
+        // Fetch the GitHub stars count. Resolves to the live number or null if the request fails.
+        const starsPromise = fetch('https://api.github.com/repos/psviderski/uncloud')
+            .then(function (res) {
+                if (!res.ok) throw new Error('GitHub API ' + res.status);
+                return res.json();
+            })
+            .then(function (data) {
+                return typeof data.stargazers_count === 'number' ? data.stargazers_count : null;
+            })
+            .catch(function () {
+                return null;
+            });
+
+        starsPromise.then(function (count) {
+            if (count === null) return;
+            document.querySelectorAll('.js-github-stars').forEach(function (el) {
+                el.textContent = formatStars(count);
+            });
+        });
+
+        function formatStars(count) {
+            if (count < 1000) return String(count);
+            // Round to one decimal on the nearest 100 (e.g. 5250 -> 5.3k), matching GitHub's rounding.
+            return Math.round(count / 100) / 10 + 'k';
+        }
+
+        // Stats counter target for GitHub stars, in thousands.
+        window.githubStarsK = starsPromise.then(function (count) {
+            return count === null ? null : Math.round(count / 100) / 10;
+        });
+
+        // Fetch total GitHub downloads via the shields.io badge endpoint.
+        // Resolves to the absolute count, or null if the request fails.
+        const downloadsPromise = fetch('https://img.shields.io/github/downloads/psviderski/uncloud/total.json')
+            .then(function (res) {
+                if (!res.ok) throw new Error('shields.io ' + res.status);
+                return res.json();
+            })
+            .then(function (data) {
+                // data.value is a formatted string like "21k", "1.2M", or "950".
+                const m = /^([\d.]+)\s*([kM]?)/.exec(data.value || '');
+                if (!m) return null;
+                return parseFloat(m[1]) * {'': 1, k: 1e3, M: 1e6}[m[2]];
+            })
+            .catch(function () {
+                return null;
+            });
+
+        // Stats counter target for total downloads, in thousands.
+        window.downloadsK = downloadsPromise.then(function (total) {
+            return total === null ? null : Math.round(total / 1000);
+        });
+
+        <!-- Animate counter -->
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('counter', (target = 0, duration = 2000) => ({
+                startTimestamp: null,
+                step: null,
+                rawValue: 0,
+                counterValue: 0,
+                target: target,
+                precision: 0,
+                animationRequestId: null,
+                animationCompleted: false,
+                observer: null,
+                fallback: 0,
+                init() {
+                    // Capture the static value rendered in the markup as the fallback.
+                    this.fallback = parseFloat(this.$el.textContent)
+                    // Intersection observer to watch visibility.
+                    this.observer = new IntersectionObserver(entries => {
+                        entries.forEach(entry => {
+                            // Check if element is in view.
+                            if (entry.isIntersecting && !this.animationCompleted) {
+                                this.startAnimation()
+                            }
+                        })
+                    })
+                    this.observer.observe(this.$el)
+                },
+                startAnimation() {
+                    this.observer && this.observer.disconnect() // Animate once, stop further intersection callbacks.
+                    Promise.resolve(this.target).then((target) => {
+                        // Fall back to the markup value when failed to fetch the up-to-date value.
+                        if (!Number.isFinite(target)) target = this.fallback
+                        this.precision = (target % 1 === 0) ? 0 : (target.toString().split('.')[1] || '').length
+                        this.step = (timestamp) => {
+                            if (!this.startTimestamp) this.startTimestamp = timestamp
+                            const progress = Math.min((timestamp - this.startTimestamp) / duration, 1)
+                            const easedProgress = this.easeOut(progress)
+                            this.rawValue = parseFloat((easedProgress * target).toFixed(this.precision))
+                            this.counterValue = this.rawValue.toFixed(this.precision)
+                            if (progress < 1) {
+                                this.animationRequestId = window.requestAnimationFrame(this.step)
+                            } else {
+                                this.animationCompleted = true
+                            }
+                        }
+                        this.animationRequestId = window.requestAnimationFrame(this.step)
+                    })
+                },
+                easeOut(t) {
+                    return 1 - Math.pow(1 - t, 5)
+                },
+                destroy() {
+                    // Detach the handler to avoid memory and side-effect leakage.
+                    this.animationRequestId && window.cancelAnimationFrame(this.step)
+                    this.observer && this.observer.disconnect()
+                },
+            }))
+        })
+    })();
+</script>
+
+</body>
+
+</html>

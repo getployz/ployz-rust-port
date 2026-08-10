@@ -1,0 +1,113 @@
+# Make sure to check the documentation at https://goreleaser.com
+
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+report_sizes: true
+
+git:
+  # Skip the stale 'nightly' tag so {{.Version}} resolves to the latest semver tag for --snapshot builds.
+  ignore_tags:
+    - nightly
+snapshot:
+  # Semver-compliant nightly version, e.g. "0.19.0-nightly-abc1234" when the latest tag is v0.18.0.
+  version_template: "{{ incminor .Version }}-nightly-{{.ShortCommit}}"
+
+builds:
+  - id: uc
+    main: ./cmd/uc
+    binary: uc
+    env:
+      # Use CGO to be able to build fsevent required by compose on macOS.
+      - CGO_ENABLED={{ if eq .Os "darwin" }}1{{ else }}0{{ end }}
+    goos:
+      - darwin
+      - linux
+      #- windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+        -X github.com/psviderski/uncloud/internal/version.version={{.Version}}
+        -X github.com/psviderski/uncloud/internal/version.commit={{.Commit}}
+        -X github.com/psviderski/uncloud/internal/version.dirty={{.IsGitDirty}}
+        -X github.com/psviderski/uncloud/internal/version.date={{.CommitDate}}
+        -X github.com/psviderski/uncloud/internal/version.builtBy=goreleaser
+
+  - id: uncloudd
+    main: ./cmd/uncloudd
+    binary: uncloudd
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+        -X github.com/psviderski/uncloud/internal/version.version={{.Version}}
+        -X github.com/psviderski/uncloud/internal/version.commit={{.Commit}}
+        -X github.com/psviderski/uncloud/internal/version.dirty={{.IsGitDirty}}
+        -X github.com/psviderski/uncloud/internal/version.date={{.CommitDate}}
+        -X github.com/psviderski/uncloud/internal/version.builtBy=goreleaser
+
+archives:
+  - id: uc
+    builds:
+      - uc
+    formats:
+      # gz is not compatible with homebrew releases, so we use tar.gz
+      - tar.gz
+    name_template: >-
+      {{ .Binary }}_
+      {{- if eq .Os "darwin"}}macos
+      {{- else}}{{.Os}}{{end}}_
+      {{- .Arch }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - none*
+
+  - id: uncloudd
+    builds:
+      - uncloudd
+    formats:
+      - tar.gz
+    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - name: uncloud
+    description: "Uncloud CLI"
+    homepage: "https://uncloud.run"
+    ids:
+      - uc
+    install: |
+      bin.install "uc"
+    skip_upload: false
+    repository:
+      owner: psviderski
+      name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN_HOMEBREW_TAP }}"

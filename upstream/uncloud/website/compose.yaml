@@ -1,0 +1,28 @@
+services:
+  uncloud-website:
+    image: uncloud-website
+    build:
+      cache_from:
+        - type=gha,scope=uncloud-website
+      cache_to:
+        - type=gha,mode=max,scope=uncloud-website
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    user: nobody
+    x-caddy: |
+      uncloud.run {
+          redir /discord https://discord.gg/eR35KQJhPu
+
+          reverse_proxy {{upstreams 8000}} {
+              import common_proxy
+              lb_policy first
+          }
+          log
+      }
+    scale: 2
+    x-machines:
+      - uc-prod-us2
+      - uc-prod-ap1
+
+x-context: uc-prod

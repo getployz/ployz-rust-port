@@ -1,0 +1,175 @@
+package proxy
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
+
+	"github.com/siderolabs/grpc-proxy/proxy"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+)
+
+// Director manages routing of gRPC requests between local and remote backends.
+type Director struct {
+	localBackend   *LocalBackend
+	remotePort     uint16
+	remoteBackends sync.Map
+	localAddress   atomic.Value
+	mapper         MachineMapper
+}
+
+func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) *Director {
+	return &Director{
+		localBackend: NewLocalBackend(localSockPath),
+		remotePort:   remotePort,
+		mapper:       mapper,
+	}
+}
+
+// UpdateLocalAddress updates the local machine address used to identify which requests should be proxied
+// to the local gRPC server. It is called once during machine startup before the proxy server accepts requests.
+func (d *Director) UpdateLocalAddress(addr string) {
+	d.localAddress.Store(addr)
+}
+
+// Director implements proxy.StreamDirector for grpc-proxy, routing requests to local or remote backends based
+// on gRPC metadata in the context. Each machine metadata is injected into the response messages by the proxy
+// if the request is proxied to multiple backends.
+func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.Mode, []proxy.Backend, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
+	}
+	// If the request is already proxied, send it to the local backend.
+	if _, ok = md["proxy-authority"]; ok {
+		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
+	}
+	// If the request metadata doesn't contain machines to proxy to, send it to the local backend.
+	machines, hasMachines := md["machines"]
+	machine, hasMachine := md["machine"]
+	if !hasMachines && !hasMachine {
+		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
+	}
+
+	// Handle singular "machine" case (One2One, no metadata injection)
+	if hasMachine {
+		if len(machine) != 1 {
+			return proxy.One2One, nil, status.Error(codes.InvalidArgument,
+				"proxy metadata 'machine' must have exactly one value")
+		}
+		if hasMachines {
+			return proxy.One2One, nil, status.Error(codes.InvalidArgument,
+				"both 'machine' and 'machines' proxy metadata are set")
+		}
+		targets, err := d.mapper.MapMachines(ctx, machine)
+		if err != nil {
+			return proxy.One2One, nil, mapErrorToStatus(err)
+		}
+
+		backend, err := d.getBackend(targets[0].Addr)
+		if err != nil {
+			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
+		}
+
+		// For One2One, we don't wrap in MetadataBackend as we don't inject metadata.
+		return proxy.One2One, []proxy.Backend{backend}, nil
+	}
+
+	// Handle plural "machines" case (One2Many, always metadata injection)
+	if len(machines) == 0 {
+		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "proxy metadata 'machines' is empty")
+	}
+
+	targets, err := d.mapper.MapMachines(ctx, machines)
+	if err != nil {
+		return proxy.One2One, nil, mapErrorToStatus(err)
+	}
+
+	backends := make([]proxy.Backend, len(targets))
+	for i, t := range targets {
+		backend, err := d.getBackend(t.Addr)
+		if err != nil {
+			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
+		}
+
+		// Wrap with metadata injector
+		backends[i] = &MetadataBackend{
+			Backend:     backend,
+			MachineID:   t.ID,
+			MachineName: t.Name,
+			MachineAddr: t.Addr,
+		}
+	}
+
+	// TODO: should we periodically close and delete outdated remote backends (the ones left after removing machines)?
+	//  IIRC the proxy will try to reconnect to them indefinitely. This can be stopped by restarting the daemon.
+	//  But we can clean them up, e.g. when a client requests 'machines: *' so we know all the current targets
+	//  or run a background goroutine that periodically lists them and closes old remoteBackends.
+
+	return proxy.One2Many, backends, nil
+}
+
+// mapErrorToStatus converts mapper errors to appropriate gRPC status errors.
+func mapErrorToStatus(err error) error {
+	if notFound, ok := errors.AsType[*MachinesNotFoundError](err); ok {
+		return status.Error(codes.InvalidArgument, notFound.Error())
+	}
+	// Check if already a gRPC status error.
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+	return status.Error(codes.Internal, fmt.Sprintf("failed to resolve machines: %v", err))
+}
+
+// getBackend returns a backend for the given address, utilizing local backend if matching local address.
+func (d *Director) getBackend(addr string) (proxy.Backend, error) {
+	if localAddr, _ := d.localAddress.Load().(string); localAddr != "" && addr == localAddr {
+		return d.localBackend, nil
+	}
+	return d.remoteBackend(addr)
+}
+
+// remoteBackend returns a RemoteBackend for the given address from the cache or creates a new one.
+func (d *Director) remoteBackend(addr string) (*RemoteBackend, error) {
+	b, ok := d.remoteBackends.Load(addr)
+	if ok {
+		return b.(*RemoteBackend), nil
+	}
+
+	backend, err := NewRemoteBackend(addr, d.remotePort)
+	if err != nil {
+		return nil, err
+	}
+	existing, loaded := d.remoteBackends.LoadOrStore(addr, backend)
+	if loaded {
+		// A concurrent remoteBackend call built a different backend.
+		backend.Close()
+		return existing.(*RemoteBackend), nil
+	}
+
+	return backend, nil
+}
+
+// FlushRemoteBackends closes all remote backend connections and removes them from the cache.
+func (d *Director) FlushRemoteBackends() {
+	d.remoteBackends.Range(func(key, value any) bool {
+		backend, ok := value.(*RemoteBackend)
+		if !ok {
+			return true
+		}
+
+		backend.Close()
+		d.remoteBackends.Delete(key)
+		return true
+	})
+}
+
+// Close closes all backend connections.
+func (d *Director) Close() {
+	d.localBackend.Close()
+	d.FlushRemoteBackends()
+}

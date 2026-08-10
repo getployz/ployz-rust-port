@@ -1,0 +1,82 @@
+name: Go Tests
+on:
+  push:
+    branches:
+      - "main"
+      - "test/**"
+      - "release/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/**"
+      - "**.go"
+      - "**.proto"
+      - "go.*"
+      - "Makefile"
+      - "scripts/**"
+      - "test/**"
+permissions:
+  contents: read
+env:
+  MISE_VERSION: "2026.3.7"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+      - name: Reset changes in mise.lock after fresh mise install
+        run: git checkout mise.lock
+
+      - name: Install dependencies
+        run: |
+          go mod tidy
+          git diff --exit-code ||
+            (echo "go.mod or go.sum has changed. Please run 'go mod tidy' and commit the changes." && exit 1)
+
+      - name: Generate docs
+        run: |
+          make cli-docs
+          git diff --exit-code ||
+            (echo "Documentation is out of date. Please run 'make cli-docs' and commit the changes." && exit 1)
+
+      - name: Run tests
+        run: |
+          mise ucind:image
+          make test
+    timeout-minutes: 15
+
+  check-protobuf:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        # Run on more platforms so that mise lockfile checksums are checked/generated for all platforms.
+        # See https://github.com/jdx/mise/issues/4276 for details.
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+
+      # TODO: figure out how to properly lock all platforms in the lockfile and remove this hack.
+      # `mise lock` (mise run mise:lock) doesn't generate checksums for some of the tools, e.g. protoc*
+      - name: Reset changes in mise.lock after fresh mise install
+        run: git checkout mise.lock
+
+      - name: Generate Protobuf files
+        run: |
+          mise run proto
+          # Check if the generated files are up to date.
+          git diff --exit-code ||
+            (echo "Generated protobuf files are not up to date. Please run 'mise run proto' and commit the changes." && exit 1)
