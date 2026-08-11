@@ -70,6 +70,13 @@ passing candidates, the default choice is the most idiomatic and widely adopted
 Rust solution. The selected dependency shapes the Rust design; it is not hidden
 behind an imitation of the Go dependency API.
 
+An explicit row in `migration/AUTHORITIES.tsv` may accept documented dependency
+deviations and authorize a provisional candidate. In that case, bounded
+research and a narrow package seam replace exhaustive dependency proof as the
+implementation gate. The detailed decision remains required evidence for the
+accepted limitations, but implementation proceeds when
+`migration/DEPENDENCIES.tsv` says `approved`.
+
 Before evaluating a capability, search its external API symbols repo-wide
 (excluding explicitly out-of-scope paths), then trace every command path and
 direct consumer. Package imports or compilation reachability alone neither

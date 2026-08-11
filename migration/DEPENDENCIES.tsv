@@ -2,21 +2,21 @@ capability	status	decision_record	selected_dependency	version	license	reviewer_r
 build-time-vcs-metadata	approved	migration/dependencies/build-time-vcs-metadata.md	vergen-gitcl	10.0.2	MIT OR Apache-2.0	no	internal/version	-
 docker-oci-reference-parsing	approved	migration/dependencies/docker-oci-reference-parsing.md	oci-spec[distribution]	0.10.0	Apache-2.0	no	internal/cli/tui	-
 prometheus-metrics	approved	migration/dependencies/prometheus-metrics.md	prometheus[protobuf]	0.14.0	Apache-2.0	no	internal/metrics,internal/machine/metrics	-
-randomized-exponential-backoff	research-required	migration/dependencies/randomized-exponential-backoff.md	-	-	-	yes	internal/docker,internal/corrosion,internal/machine/corroservice,internal/machine/cluster,internal/cli,internal/machine/docker,internal/ucind,pkg/client	/root/randomized_backoff_research
+randomized-exponential-backoff	approved	migration/dependencies/randomized-exponential-backoff.md	backon[std,tokio-sleep];fastrand[std]	1.6.0;2.5.0	Apache-2.0;Apache-2.0 OR MIT	yes	internal/docker,internal/corrosion,internal/machine/corroservice,internal/machine/cluster,internal/cli,internal/machine/docker,internal/ucind,pkg/client	/root/randomized_backoff_research
 structured-logging-facade	approved	migration/dependencies/structured-logging-facade.md	tracing;tracing-subscriber	0.1.44;0.3.23	MIT	no	internal/log	-
-async-stream-network-runtime	blocked	migration/dependencies/async-stream-network-runtime.md	tokio;tokio-util	1.53.1;0.7.19	MIT	yes	internal/proxy	-
-synchronous-outbound-http-client	blocked	migration/dependencies/synchronous-outbound-http-client.md	-	-	-	yes	internal/dns	-
+async-stream-network-runtime	approved	migration/dependencies/async-stream-network-runtime.md	tokio;tokio-util	1.53.1;0.7.19	MIT	yes	internal/proxy	-
+synchronous-outbound-http-client	approved	migration/dependencies/synchronous-outbound-http-client.md	base64;bytes;flate2;h2;http;http-body-util;hyper;hyper-rustls;hyper-util;ipnet;tokio	0.22.1;1.12.1;1.1.9;0.4.15;1.5.0;0.1.4;1.11.0;0.27.9;0.1.20;2.12.1;1.53.1	MIT;MIT OR Apache-2.0	yes	internal/dns	-
 interactive-terminal-runtime	blocked	migration/dependencies/interactive-terminal-runtime.md	-	-	-	yes	internal/cli/tui	-
-terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	console;comfy-table	0.16.4;8.0.0	MIT	yes	internal/cli/tui	-
+terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	-	-	-	yes	internal/cli/tui	-
 terminal-output-profile	blocked	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	-
-http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
-protobuf-codegen-runtime	blocked	migration/dependencies/protobuf-codegen-runtime.md	-	-	-	yes	internal/machine/api/pb	-
+http-server-runtime	approved	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
+protobuf-codegen-runtime	approved	migration/dependencies/protobuf-codegen-runtime.md	prost;prost-types;prost-build;tonic-prost;tonic-prost-build	0.14.4;0.14.4;0.14.4;0.14.6;0.14.6	Apache-2.0;MIT	yes	internal/machine/api/pb	-
 async-grpc-client-server	approved	migration/dependencies/async-grpc-client-server.md	tonic;tonic-build;tokio;tokio-stream;tower;http;bytes;hyper-util	0.14.6;0.14.6;1.53.1;0.1.19;0.5.3;1.5.0;1.12.1;0.1.20	MIT	no	internal/machine/api/pb,internal/grpcversion,internal/machine,pkg/client/connector,internal/machine/api/proxy	-
 grpc-metadata-interceptor	approved	migration/dependencies/grpc-metadata-interceptor.md	tonic;tower	0.14.6;0.5.3	MIT	no	internal/grpcversion	-
 semantic-version-parsing	approved	migration/dependencies/semantic-version-parsing.md	semver[std]	1.0.28	MIT OR Apache-2.0	no	internal/grpcversion	-
 unix-account-lookup-chown	approved	migration/dependencies/unix-nss-user-group-resolution.md	rustix[std,process];libc	1.1.4;0.2.189	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT;MIT OR Apache-2.0	yes	internal/fs,internal/sshexec,internal/machine	-
-docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	-
-docker-registry-credential-resolution	research-required	migration/dependencies/docker-registry-credential-resolution.md	-	-	-	yes	internal/docker,internal/machine/docker,pkg/client	pending-launch
-http2-tls-client	blocked	migration/dependencies/http2-tls-client.md	-	-	MIT;MIT OR Apache-2.0	yes	internal/corrosion	-
-streaming-gzip-content-decoding	research-required	migration/dependencies/streaming-gzip-content-decoding.md	-	-	-	yes	internal/corrosion	/root/streaming_gzip_research
-userspace-wireguard-tunnel	blocked	migration/dependencies/userspace-wireguard-tunnel.md	-	-	-	yes	internal/machine/network/tunnel	-
+docker-engine-client	approved	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	-
+docker-registry-credential-resolution	approved	migration/AUTHORITIES.tsv	docker_credential	1.4.0	MIT OR Apache-2.0	yes	internal/docker,internal/machine/docker,pkg/client	-
+http2-tls-client	approved	migration/dependencies/http2-tls-client.md	bytes;fastrand;h2;http-body-util;hyper;hyper-util;tokio	1.12.1;2.5.0;0.4.15;0.1.4;1.11.0;0.1.20;1.53.1	MIT;MIT OR Apache-2.0;Apache-2.0 OR MIT	yes	internal/corrosion	-
+streaming-gzip-content-decoding	approved	migration/dependencies/streaming-gzip-content-decoding.md	async-compression;tokio-util;futures-util	0.4.43;0.7.19;0.3.34	MIT OR Apache-2.0	yes	internal/corrosion	/root/streaming_gzip_research
+userspace-wireguard-tunnel	approved	migration/dependencies/userspace-wireguard-tunnel.md	boringtun;smoltcp	0.7.1;0.13.1	BSD-3-Clause;0BSD	yes	internal/machine/network/tunnel	-

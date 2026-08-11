@@ -25,6 +25,30 @@ production internal dependency is integrated and every external capability it
 needs has an approved decision. The worker reads the oracle package, its tests,
 and callers directly; the controller does not create a prose packet.
 
+## Human-approved provisional dependency policy
+
+`migration/AUTHORITIES.tsv` records explicit user authority that overrides a
+dependency record's earlier blocked hard-gate verdict for scheduling. As of
+2026-08-11, every currently known non-terminal capability may use the strongest
+popular idiomatic candidate as an approved provisional seam. Documented
+behavior, platform, security, or lifecycle deviations are accepted migration
+limitations for this run; exhaustive dependency parity proof is not a
+prerequisite to package implementation. `migration/DEPENDENCIES.tsv` is the
+controlling scheduler status, while the detailed decision record remains the
+evidence for limitations the implementor must preserve or isolate.
+
+This authority applies only to the capability rows explicitly present in
+`migration/AUTHORITIES.tsv`. A capability discovered later remains unapproved
+until its own exact crates, versions, features, deviations, and user-approval
+date are selected and recorded. Dependency research and review for the approved
+rows may improve the decision in parallel but must not consume or delay an
+available implementation slot.
+
+The only current exceptions are `interactive-terminal-runtime`,
+`terminal-styling-layout`, and `terminal-output-profile`. They remain pending
+until the user reviews the candidate links and chooses the terminal styling
+approach; `internal/cli/tui` therefore remains dependency-blocked.
+
 ## Scheduler pools
 
 ### Package implementation pool
