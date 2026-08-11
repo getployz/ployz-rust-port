@@ -1,4 +1,8 @@
-use std::str::FromStr;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
 
 use ployz_internal_secret::{Secret, new, new_id, random_alphanumeric};
 
@@ -17,17 +21,65 @@ fn from_hex_string_parses_empty_lowercase_and_uppercase() {
 fn from_hex_string_rejects_invalid_input_with_context() {
     let odd_length = Secret::from_hex_string("abc").expect_err("odd-length input must fail");
     let non_hex = Secret::from_hex_string("zz").expect_err("non-hex input must fail");
+    let invalid_odd_tail =
+        Secret::from_hex_string("abz").expect_err("an invalid trailing digit must fail");
+    let non_ascii = Secret::from_hex_string("é").expect_err("non-ASCII input must fail");
+    let control = Secret::from_hex_string("\n").expect_err("control input must fail");
+    let quote = Secret::from_hex_string("'").expect_err("quote input must fail");
+    let backslash = Secret::from_hex_string("\\").expect_err("backslash input must fail");
 
-    assert!(
-        odd_length
-            .to_string()
-            .starts_with("invalid hex-encoded secret: ")
+    assert_eq!(
+        odd_length.to_string(),
+        "invalid hex-encoded secret: encoding/hex: odd length hex string"
     );
-    assert!(
-        non_hex
-            .to_string()
-            .starts_with("invalid hex-encoded secret: ")
+    assert_eq!(
+        non_hex.to_string(),
+        "invalid hex-encoded secret: encoding/hex: invalid byte: U+007A 'z'"
     );
+    assert_eq!(
+        invalid_odd_tail.to_string(),
+        "invalid hex-encoded secret: encoding/hex: invalid byte: U+007A 'z'"
+    );
+    assert_eq!(
+        non_ascii.to_string(),
+        "invalid hex-encoded secret: encoding/hex: invalid byte: U+00C3 'Ã'"
+    );
+    assert_eq!(
+        control.to_string(),
+        "invalid hex-encoded secret: encoding/hex: invalid byte: U+000A"
+    );
+    assert_eq!(
+        quote.to_string(),
+        "invalid hex-encoded secret: encoding/hex: invalid byte: U+0027 '''"
+    );
+    assert_eq!(
+        backslash.to_string(),
+        "invalid hex-encoded secret: encoding/hex: invalid byte: U+005C '\\'"
+    );
+}
+
+#[test]
+fn hexadecimal_round_trips_arbitrary_bytes() {
+    for length in 0..=512 {
+        let bytes: Vec<u8> = (0..length)
+            .map(|index| (index as u8).wrapping_mul(73).wrapping_add(19))
+            .collect();
+        let secret = Secret::from(bytes.as_slice());
+        let encoded = secret.to_hex_string();
+
+        assert_eq!(encoded.len(), length * 2);
+        assert!(
+            encoded
+                .bytes()
+                .all(|byte| { byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) })
+        );
+        assert_eq!(
+            Secret::from_hex_string(&encoded)
+                .expect("the crate's own hexadecimal output must parse")
+                .as_bytes(),
+            bytes
+        );
+    }
 }
 
 #[test]
@@ -54,13 +106,57 @@ fn serde_uses_the_same_text_representation() {
 }
 
 #[test]
+fn serde_null_restores_the_nil_zero_value() {
+    let secret: Secret = serde_json::from_str("null").expect("JSON null should deserialize");
+
+    assert!(secret.is_nil());
+    assert!(secret.is_empty());
+    assert_eq!(serde_json::to_string(&secret).unwrap(), "\"\"");
+}
+
+#[test]
 fn default_is_an_empty_secret() {
     let secret = Secret::default();
 
+    assert!(secret.is_nil());
     assert!(secret.is_empty());
     assert!(secret.as_bytes().is_empty());
     assert_eq!(secret.to_hex_string(), "");
     assert!(secret.equal(&Secret::default()));
+}
+
+#[test]
+fn nil_and_allocated_empty_secrets_compare_and_hash_equally() {
+    let nil = Secret::default();
+    let parsed_empty = Secret::from_hex_string("").expect("empty hexadecimal should parse");
+    let converted_empty = Secret::from(Vec::new());
+
+    assert!(nil.is_nil());
+    assert!(!parsed_empty.is_nil());
+    assert!(!converted_empty.is_nil());
+    assert_eq!(nil, parsed_empty);
+    assert_eq!(nil, converted_empty);
+
+    let hash = |secret: &Secret| {
+        let mut hasher = DefaultHasher::new();
+        secret.hash(&mut hasher);
+        hasher.finish()
+    };
+    assert_eq!(hash(&nil), hash(&parsed_empty));
+    assert_eq!(hash(&nil), hash(&converted_empty));
+}
+
+#[test]
+fn raw_byte_conversions_and_views_support_callers() {
+    let mut from_slice = Secret::from(&[0xde, 0xad, 0xbe, 0xef][..]);
+    let from_array = Secret::from([0xde, 0xad, 0xbe, 0xef]);
+
+    assert_eq!(from_slice, from_array);
+    assert_eq!(from_slice.as_ref(), &[0xde, 0xad, 0xbe, 0xef]);
+    assert_eq!(&from_slice.as_bytes()[..2], &[0xde, 0xad]);
+    from_slice.as_mut()[0] = 0xca;
+    assert_eq!(from_slice.as_mut_bytes(), &[0xca, 0xad, 0xbe, 0xef]);
+    assert_eq!(from_array.into_bytes(), vec![0xde, 0xad, 0xbe, 0xef]);
 }
 
 #[test]
@@ -75,11 +171,9 @@ fn equality_compares_secret_bytes() {
 
 #[test]
 fn new_returns_the_requested_number_of_random_bytes() {
-    assert!(
-        new(0)
-            .expect("empty random secret should be supported")
-            .is_empty()
-    );
+    let empty = new(0).expect("empty random secret should be supported");
+    assert!(empty.is_empty());
+    assert!(!empty.is_nil());
 
     let secret = new(32).expect("random secret generation should succeed");
 

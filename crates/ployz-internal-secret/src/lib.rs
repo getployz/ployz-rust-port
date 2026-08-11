@@ -1,7 +1,7 @@
 //! Secret generation and hexadecimal text encoding.
 //!
-//! This crate ports Go's `internal/secret` package. The source modules retain
-//! the upstream filenames so future parity reviews can compare them directly.
+//! Secrets preserve the absent zero value used by configuration callers while
+//! formatting and comparing it like an empty byte sequence.
 
 mod id;
 mod secret;
