@@ -12,5 +12,5 @@ protobuf-codegen-runtime	blocked	migration/dependencies/protobuf-codegen-runtime
 async-grpc-client-server	queued	migration/dependencies/async-grpc-client-server.md	-	-	-	yes	internal/machine/api/pb,internal/grpcversion	-
 unix-account-lookup-chown	adversarial-review	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	/root/nss_adversarial_review
 docker-engine-client	research	migration/dependencies/docker-engine-client.md	-	-	-	yes	internal/docker	/root/docker_engine_research
-http2-tls-client	queued	migration/dependencies/http2-tls-client.md	-	-	-	yes	internal/corrosion	-
+http2-tls-client	research	migration/dependencies/http2-tls-client.md	-	-	-	yes	internal/corrosion	/root/http2_tls_research
 userspace-wireguard-tunnel	queued	migration/dependencies/userspace-wireguard-tunnel.md	-	-	-	yes	internal/machine/network/tunnel	-
