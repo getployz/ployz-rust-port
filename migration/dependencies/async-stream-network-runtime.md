@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` pending the mandatory fresh adversarial review below |
+| Status | `human-decision-required` — Tokio is the best conditional runtime, but exact hostname/no-orphan behavior and the accepted-connection bound conflict with the oracle and lack scope authority |
 | Capability | Bounded, cancellation-safe TCP/Unix stream acceptance, deadline-bounded TCP dialing, supervised bidirectional copying, and write-half shutdown for `internal/proxy` |
-| Selected dependency | Provisional: Tokio `1.53.1` and tokio-util `0.7.19` |
+| Selected dependency | No approved selection; conditional candidate is Tokio `1.53.1` and tokio-util `0.7.19` |
 | License | `MIT` (both direct crates) |
 | Research date | `2026-08-11` UTC |
 | Request | Delegated capability request; no request file exists at the assigned integration base |
@@ -12,11 +12,12 @@
 | Blocked package evidence | `/tmp/ployz-proxy-writer` commit `1040794b0e5696afd4ee1145b64902033217a0fa` |
 | Affected package | `ployz-internal-proxy` (`upstream/uncloud/internal/proxy`) |
 
-The selected stack is the popular, idiomatic passing candidate. It replaces
+The conditional stack is the popular, idiomatic candidate. It replaces
 the rejected implementation's blocking listener clones and per-connection OS
 threads with cancellation-safe readiness futures and supervised runtime tasks.
-This record approves runtime primitives, not a private runtime or a Go-shaped
-threading adapter.
+It is **not approved**: the mandatory fresh adversarial review found unresolved
+behavior authority and verification gaps. The controller must not add it to the
+dependency registry as approved.
 
 ## Oracle and blocked-implementation evidence
 
@@ -83,7 +84,10 @@ threading adapter.
   `AsyncWrite::shutdown` on the opposing writer after clean EOF, continues the
   other direction, and returns the first I/O error immediately. Its source
   contains both transfer state machines in the caller's future and spawns no
-  hidden tasks.
+  hidden tasks. Unlike Go, however, it propagates `AsyncWrite::shutdown`
+  failures. It is therefore not an exact drop-in: a small `AsyncWrite` adapter
+  would have to poll the real shutdown to completion but deliberately convert
+  its result to `Ok(())`, preserving Go's ignored `CloseWrite` result.
 - [`Semaphore`](https://docs.rs/tokio/1.53.1/tokio/sync/struct.Semaphore.html)
   supplies the explicit accepted-handler bound.
   [`JoinSet`](https://docs.rs/tokio/1.53.1/tokio/task/struct.JoinSet.html)
@@ -97,9 +101,9 @@ threading adapter.
   [published manifest](https://docs.rs/crate/tokio-util/0.7.19/source/Cargo.toml)
   shows that the type is available without an optional feature; `rt` is for
   separate task utilities and is unnecessary here.
-- Tokio's
-  [platform policy](https://docs.rs/tokio/1.53.1/src/tokio/lib.rs.html#397-421)
-  lists Linux, Windows 10+, and macOS 10.15+ among supported platforms. Unix
+- Tokio's published
+  [platform-policy source](https://docs.rs/crate/tokio/1.53.1/source/src/lib.rs)
+  lists Linux, Windows, and macOS among supported platforms. Unix
   sockets are compiled only on Unix; Windows uses TCP for the oracle's shipped
   proxy path and must not expose a fake filesystem-Unix implementation.
 - The published Tokio and tokio-util manifests declare MSRV `1.71` and MIT.
@@ -113,11 +117,11 @@ threading adapter.
 
 | Gate | Requirement | Evidence and disposition | Result |
 | --- | --- | --- | --- |
-| Behavior | TCP and Unix acceptance must cancel even after Unix unlink; ten-second/parent cancellation must drop the dial operation; no late connection; bounded multiplexing; two-way copy with EOF half-close; exact outer/per-connection error ownership | Tokio documents cancel-safe TCP/Unix accept. The direct `TcpSocket::connect(SocketAddr)` future owns its socket. `copy_bidirectional` supplies the exact clean-EOF half-close state machine. `Semaphore`, `JoinSet`, and `CancellationToken` provide an explicit bound and drain. The local probe exercised all of these. The string DNS overload is forbidden because it introduces unabortable blocking resolution. | `pass` for numeric default targets and async custom dialers under the contract below; hostname limitation requires explicit scope treatment |
-| License and security | Permissive, no TLS/crypto/C service, no known advisory, bounded untrusted connection work | Both direct crates are MIT. The exact 18-package lock used only MIT, Apache-2.0, Unicode-3.0, and LLVM-exception combinations. A 1,211-advisory RustSec scan found no vulnerability. No TLS, resolver, signal, filesystem, process, or `unsafe` application code is selected. The application must enforce a 256-handler permit bound before accept. | `pass` |
-| Platforms and targets | Linux/macOS/Windows TCP; Linux/macOS Unix sockets; honest Windows exclusion | Tokio officially supports the three OS families. Rust 1.96 all-target checks passed for `x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `x86_64-pc-windows-gnu`. The native Linux probe covered loopback TCP and Unix cancellation after unlink. Cross-checks are compile evidence, so native macOS/Windows runtime tests remain package-acceptance obligations. | `pass` for dependency selection |
+| Behavior | TCP and Unix acceptance must cancel even after Unix unlink; ten-second/parent cancellation must drop the dial operation; no late connection; bounded multiplexing; two-way copy with EOF half-close; exact outer/per-connection error ownership | Tokio documents cancel-safe TCP/Unix accept and a direct `TcpSocket::connect(SocketAddr)` future owns its socket. But the oracle's default dialer also accepts hostnames, while Tokio resolves string targets in unabortable blocking work. The proposed numeric-only restriction lacks parity authority. The proposed fixed bound also changes overload behavior without an authorized value. Raw `copy_bidirectional` propagates shutdown errors that Go ignores. | **`fail`** pending the two authority decisions and corrected/proved shutdown-error handling |
+| License and security | Permissive, no TLS/crypto/C service, no known advisory, bounded untrusted connection work | Both direct crates are MIT. The exact 18-package lock used only MIT, Apache-2.0, Unicode-3.0, and LLVM-exception combinations. A 1,211-advisory RustSec scan found no vulnerability. No TLS, resolver, signal, filesystem, process, or `unsafe` application code is selected. The application must enforce an explicitly authorized finite handler bound before accept. | `pass` conditional on that bound; behavior authority remains failed |
+| Platforms and targets | Linux/macOS/Windows TCP; Linux/macOS Unix sockets; honest Windows exclusion | Tokio's published source names the three OS families. Rust 1.96 all-target checks passed for `x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `x86_64-pc-windows-gnu`. The native Linux probe covered loopback TCP and Unix cancellation after unlink. Cross-checks are compile evidence only; this record does not claim native non-Linux runtime parity or unverified OS-version floors. | `pass` for conditional dependency compatibility; does not override behavior failure |
 | Maintenance and Rust version | Active current release, compatible with Rust 1.96, strong production adoption | Both exact releases were less than one month old at research time, declare MSRV 1.71, and have hundreds of millions of downloads. Tokio also publishes a rolling MSRV and LTS policy. | `pass` |
-| Architectural constraints | Caller-owned runtime; async tasks rather than OS threads; bounded accepted work; no detached work; natural APIs | `run` becomes an async function on the caller's Tokio runtime. Each handler is one tracked task. The dial and copy operations remain futures inside that task. The proxy uses no private runtime, `spawn_blocking`, raw socket FFI, clone-and-wake listener trick, or compatibility facade for a Go dependency. | `pass` |
+| Architectural constraints | Caller-owned runtime; async tasks rather than OS threads; bounded accepted work; no detached work; natural APIs; custom tunnel streams, not TCP-only results | `run` can become an async function on the caller's Tokio runtime and each handler can be one tracked task. The proposed probe and dial alias were TCP-only even though frozen SSH/tunnel callers return non-TCP `net.Conn` values. The Rust contract must use an object-safe `AsyncRead + AsyncWrite + Unpin + Send` stream abstraction and prove it with a non-TCP stream. | **`fail`** for the reviewed proposal; Tokio can support the corrected design |
 
 ## Candidate comparison
 
@@ -126,18 +130,19 @@ crates.io API on `2026-08-11`.
 
 | Candidate | Behavior and platform fit | Adoption and maintenance | Integration cost | Disposition |
 | --- | --- | --- | --- | --- |
-| **Tokio `1.53.1` + tokio-util `0.7.19`** | First-party cancel-safe TCP/Unix accept, TCP socket futures, fixed-buffer bidirectional copy with half-close, semaphore, task set, timers, and cancellation token; Linux/macOS/Windows support. | 868.4M/703.9M downloads; current July 2026 releases; 67,828/6,612 reverse-dependency rows; used across Hyper/Axum/Tonic and already the selected runtime family in the repository's HTTP-server research. | Two direct crates; 18-package cross-target probe lock including the probe; one proc macro dependency for `select!`/tests. | **Selected: most idiomatic and widely adopted passing stack.** |
+| **Tokio `1.53.1` + tokio-util `0.7.19`** | First-party cancel-safe TCP/Unix accept, TCP socket futures, fixed-buffer bidirectional copy, semaphore, task set, timers, and cancellation token; Linux/macOS/Windows support. Raw copy shutdown errors and default hostname resolution need deliberate handling. | 868.4M/703.9M downloads; current July 2026 releases; 67,828/6,612 reverse-dependency rows; used across Hyper/Axum/Tonic and already the conditional runtime family in the repository's HTTP-server research. | Two direct crates; 17 registry packages in the cross-target probe lock; one proc macro dependency for `select!`/tests. | **Best conditional candidate, not approved while behavior gates fail.** |
 | smol `2.0.2` family | Async TCP/Unix is possible, but equivalent cancellation tokens, task supervision, bounded lifecycle, and exact bidirectional half-close must be assembled from additional sibling crates; its facade does not document this complete lifecycle contract. | 20.4M downloads, 679 reverse-dependency rows; latest release 2024-09-07; MSRV 1.63. | Smaller pieces individually, more direct crates and more custom orchestration for this capability. | Rejected: materially less adopted and maintained for no behavior advantage. |
 | async-std `1.13.2` | Similar high-level sockets but no first-party equivalent complete supervision/cancellation/copy stack. | Its official package metadata says "Deprecated in favor of `smol`"; 88.2M historical downloads and 1,918 reverse-dependency rows; latest release 2025-08-15. | Would choose a deprecated facade and still add lifecycle utilities. | Rejected by maintenance gate. |
 | Mio/socket2 directly | Can express nonblocking TCP and platform readiness; Unix support is lower-level. | Tokio itself is the dominant maintained abstraction built on Mio/socket2. | Reimplements an executor, timers, cancellation, wake registration, task supervision, and copy state machines. | Rejected: unnecessary low-level networking/runtime implementation. |
 | Standard-library threads (rejected candidate) | Blocking cloned accept cannot be cancelled reliably after Unix unlink; connect/copy workers can outlive timeout; two copy threads plus a dial thread per connection. | Standard library is stable, but this architecture has no maintained cancellation/runtime layer. | Unbounded OS threads and application-owned wakeup tricks. | Rejected by behavior and resource gates; this is the reviewed failing design. |
 | Hickory Resolver `0.26.1` added to Tokio | Fully async DNS and system resolver configuration, but lookup methods document background task spawning and do not reproduce every libc/NSS hostname source. | Active, MSRV 1.88, permissive, and credible for applications that require DNS. | Large DNS protocol/cache/platform graph and a second lifecycle to supervise for a proxy whose known callers use numeric IPs/custom dialers. | Rejected for this capability: does not improve the required no-detached-work guarantee enough to justify semantic/build cost. |
 
-## Selected integration
+## Conditional integration after authority and fresh review
 
 ### Exact versions and features
 
-Only the integrator may add these workspace dependencies:
+If and only if the blockers are resolved and a fresh reviewer approves the
+corrected record, the integrator would add:
 
 ```toml
 tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
@@ -158,29 +163,35 @@ tokio-util = { version = "=0.7.19", default-features = false }
 ### Required ownership and cancellation model
 
 1. `Proxy::run` is async. It creates one child `CancellationToken`, one
-   `JoinSet` containing every accepted handler, and a `Semaphore` with
-   `DEFAULT_MAX_CONNECTIONS = 256`. Acquire an owned permit before accepting;
+   `JoinSet` containing every accepted handler, and a `Semaphore` with an
+   explicitly authorized capacity. `256` was only the rejected proposal, not a
+   derived or approved value. Acquire an owned permit before accepting;
    the listener backlog, rather than application memory or OS threads, absorbs
    excess connections. The permit stays in the handler task through dial and
    copy.
-2. Race permit acquisition, the concrete listener's cancellation-safe `accept`,
-   completed handlers, and parent cancellation with unbiased `tokio::select!`.
-   Reap every completed task. On cancellation, cancel the child token and stop
-   accepting without a listener self-connect. This remains prompt if a Unix
-   socket pathname has already been removed.
+2. Use a two-stage unbiased selection: first race permit acquisition, completed
+   handlers, and parent cancellation; after owning a permit, race the concrete
+   listener's cancellation-safe `accept`, completed handlers, and cancellation.
+   Do not accept before owning a permit. Reap every completed task. On
+   cancellation, cancel the child token and stop accepting without a listener
+   self-connect. This remains prompt if a Unix socket pathname has been removed.
 3. On fatal accept failure, retain the source in `ProxyError::Accept`, cancel
    the child token, stop accepting, then drain the entire `JoinSet` before
    returning the accept error. On parent cancellation do the same drain and
    return `Ok(())`. Never detach a handler. Resume any handler panic after
    cleanup; Tokio task panics must not become silently successful proxy runs.
-4. The default dialer must parse the target to `SocketAddr`, build the matching
+4. Under the proposed numeric-only exception, the default dialer would parse
+   the target to `SocketAddr`, build the matching
    v4/v6 `TcpSocket`, and race `socket.connect(address)` against child
    cancellation and `sleep_until(start + 10s)`. Construct one fresh absolute
    deadline per accepted stream. Do not spawn the connect future. The losing
    future is dropped in the same handler before it can return or create a late
    connection.
-5. A custom dialer is an async factory returning a `Send + 'static` boxed
-   future and receives an owned child `CancellationToken`, network text exactly
+5. Define an object-safe `AsyncStream` supertrait over `AsyncRead + AsyncWrite +
+   Unpin + Send`, with a blanket implementation. A custom dialer is an async
+   factory returning `Pin<Box<dyn Future<Output = io::Result<Box<dyn
+   AsyncStream>>> + Send + 'static>>` and receives an owned child
+   `CancellationToken`, network text exactly
    `"tcp"`, unchanged remote-address text, and the absolute ten-second
    `tokio::time::Instant`. The proxy, not the callback, races that future against
    both cancellation sources and drops it on loss.
@@ -192,9 +203,11 @@ tokio-util = { version = "=0.7.19", default-features = false }
    public API and test it with a pending future carrying a drop guard. A future
    whose `poll` blocks forever violates the contract just as a Go dialer that
    ignores its context violates `DialContext`.
-7. After dial success, keep both streams in the handler and race
-   `copy_bidirectional(&mut local, &mut remote)` against child cancellation.
-   Clean EOF is handled by `copy_bidirectional`'s `shutdown` state. On copy
+7. After dial success, keep both arbitrary async streams in the handler. Wrap
+   their write sides in a small adapter whose `poll_shutdown` polls the
+   underlying shutdown but converts both success and failure to `Ok(())`; then
+   race `copy_bidirectional` against child cancellation. This preserves clean
+   EOF half-close while matching Go's ignored `CloseWrite` errors. On copy
    error or cancellation, leaving the handler drops both streams and the copy
    future; no separate copy task remains. Report a copy error only after both
    streams have been dropped and only if the child is not cancelled.
@@ -225,7 +238,7 @@ tokio-util = { version = "=0.7.19", default-features = false }
 ### Known limitations and package acceptance obligations
 
 - Tokio's system-hostname overload runs OS resolution in an unabortable blocking
-  task. To satisfy the no-orphan-operation hard gate, the approved default
+  task. To satisfy the no-orphan-operation hard gate, the proposed default
   dialer accepts numeric `SocketAddr` targets only. All frozen direct callers
   provide numeric addresses or custom tunnel dialers. If parity authority says
   the otherwise-unused implicit Go hostname behavior is required, reopen this
@@ -234,11 +247,11 @@ tokio-util = { version = "=0.7.19", default-features = false }
   After `cancel()` returns every child is cancelled; the run loop must always
   perform the final join-set drain and must not infer completion from one
   `is_cancelled` sample.
-- The 256-connection limit is an intentional resource bound required by this
-  capability. Pending kernel-backlog connections can time out or be refused
-  under load, unlike the oracle's unbounded goroutine creation. Tests must prove
-  the bound, continued service after a permit is released, and prompt
-  cancellation while saturated.
+- A finite connection limit is required by this capability but changes the
+  oracle's unbounded goroutine behavior. The controller/human must authorize the
+  capacity and overload/backpressure behavior. Tests must then prove the bound,
+  continued service after a permit is released, and prompt cancellation while
+  saturated.
 - Native non-Linux runtime evidence was unavailable in this research worktree.
   Package acceptance must run TCP cancellation/deadline/half-close tests on
   Windows and macOS and Unix unlink cancellation on macOS. The cross-target
@@ -264,13 +277,16 @@ cargo audit --no-fetch --file /tmp/ployz-async-runtime-probe/Cargo.lock
 
 Results on Rust/Cargo `1.96.0`:
 
-- five Linux runtime probes passed: ten-second/parent racing drops the custom
-  future, direct socket connect, bounded task multiplexing and drain,
-  bidirectional copy with both EOF half-closes, and Unix accept cancellation
-  after unlink;
+- five narrow Linux runtime probes passed: deadline/parent racing drops a
+  pending TCP-only custom future, direct socket connect succeeds, a standalone
+  semaphore/task batch respects its bound, raw bidirectional copy half-closes on
+  success, and Unix accept cancellation works after unlink. They did **not**
+  prove cancellation of an in-flight connect/no late accept, a saturated real
+  accept loop, fatal-accept drain, task/callback panic cleanup, copy-error
+  timing, shutdown-error suppression, or a non-TCP custom dialer;
 - warnings-denied Clippy passed;
 - Linux, Intel macOS, and Windows GNU all-target checks passed;
-- the exact graph contained 18 registry packages plus the probe, with no extra
+- the exact graph contained 17 registry packages plus the probe, with no extra
   async runtime, DNS resolver, TLS, crypto, signal, process, or filesystem
   feature;
 - the local 1,211-entry RustSec database reported no vulnerability. Re-run
@@ -278,7 +294,36 @@ Results on Rust/Cargo `1.96.0`:
 
 ## Review
 
-This networking/runtime decision requires a fresh adversarial dependency
-review. The review is in progress; this record remains blocked and must not be
-entered as approved until the reviewer result is incorporated here.
+Fresh adversarial dependency reviewer:
+`/root/async_stream_runtime_research/adversarial_commit_review`.
 
+Reviewed exact candidate `3173cbf32d21f1a5f7a85f2a6143a7d75e2b8c72`
+with parent `689686e18be585b3d4233f8fa6df36486315f440`.
+Verdict: **REJECT**.
+
+Blocking findings:
+
+1. Numeric-only default dialing and a fixed 256-handler cap change observable
+   oracle behavior without recorded controller/human parity authority. The
+   record itself left hostname scope unresolved while marking the behavior gate
+   partially passing.
+2. Raw Tokio `copy_bidirectional` propagates `AsyncWrite::shutdown` errors, but
+   Go ignores `CloseWrite` errors. The proposed direct use was not exact parity.
+3. The custom dialer/result/probe used `TcpStream`, while frozen SSH/tunnel
+   dialers can return non-TCP stream implementations. Arbitrary async stream
+   compatibility was neither specified nor tested.
+4. The probe did not exercise the claimed in-flight connect cancellation/no
+   late accept, real saturated accept behavior, fatal-accept drain,
+   task/callback panic cleanup, copy-error/shutdown-error semantics, or non-TCP
+   custom streams. It also overstated the registry-package count and platform
+   link evidence.
+
+Tokio remains the strongest candidate, and the shutdown adapter/arbitrary-stream
+corrections above are technically straightforward. Approval still requires:
+
+- a human/controller decision either preserving hostname behavior with a
+  separately researched cancellable resolver or explicitly accepting
+  numeric-only default dialing;
+- an authorized finite connection limit and overload behavior;
+- corrected executable probes for every rejected claim; and
+- a fresh adversarial review of a new exact committed candidate.
