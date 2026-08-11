@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/ployz-internal-secret",
     "crates/ployz-internal-cli-config",
+    "crates/ployz-internal-gitutil",
     "crates/ployz-internal-machine-constants",
     "crates/ployz-internal-machine-network",
     "crates/ployz-internal-machine-osinfo",
