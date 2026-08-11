@@ -10,7 +10,3 @@ build = "build.rs"
 
 [build-dependencies]
 vergen-gitcl = { version = "=10.0.2", default-features = false }
-
-# Keep this migration crate independently testable until the integrator adds it
-# to the repository workspace.
-[workspace]
