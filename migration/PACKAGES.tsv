@@ -21,7 +21,7 @@ internal/corrosion	crates/ployz-internal-corrosion	dependency-blocked	0	-	-	-	ht
 internal/daemon	crates/ployz-internal-daemon	waiting-internal	6	-	-	-	-	internal/machine	-	cmd/uncloudd
 internal/dns	crates/ployz-internal-dns	dependency-blocked	0	-	-	-	synchronous-outbound-http-client	-	-	internal/machine/cluster
 internal/docker	crates/ployz-internal-docker	dependency-blocked	0	-	-	-	docker-engine-client	-	-	internal/machine,internal/machine/docker,pkg/client
-internal/fs	crates/ployz-internal-fs	dependency-blocked	0	-	-	-	unix-account-lookup-chown	-	-	cmd/uc,internal/cli,internal/machine,internal/machine/caddyconfig,internal/machine/corromigrate,internal/machine/corroservice,internal/sshexec
+internal/fs	crates/ployz-internal-fs	ready	0	-	-	-	-	-	-	cmd/uc,internal/cli,internal/machine,internal/machine/caddyconfig,internal/machine/corromigrate,internal/machine/corroservice,internal/sshexec
 internal/gitutil	crates/ployz-internal-gitutil	integrated	0	integrator	-	6b6770c602819d2a3d49491d77759653af25e200	-	-	-	pkg/client/compose
 internal/grpcversion	crates/ployz-internal-grpcversion	integrated	1	integrator	-	0d0a4126776f8e41d025be8d6449aa10851959a6	-	internal/version	-	internal/machine,pkg/client/connector
 internal/journal	crates/ployz-internal-journal	waiting-internal	2	-	-	-	-	pkg/api	-	internal/machine
