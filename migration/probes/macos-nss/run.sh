@@ -117,13 +117,13 @@ dscl . -list /Users UniqueID |
   LC_ALL=C sort >"${output_directory}/dscl-users.txt"
 
 directory_name=""
+directory_passwd_present=""
 candidate_dscl="${output_directory}/candidate.dscl.tmp"
 candidate_cache="${output_directory}/candidate.dscacheutil.tmp"
 
 while IFS= read -r candidate; do
   [[ -n "${candidate}" ]] || continue
   [[ "${candidate}" != "${current_name}" ]] || continue
-  passwd_contains "${candidate}" && continue
 
   if ! dscl . -read "/Users/${candidate}" \
     RecordName UniqueID PrimaryGroupID NFSHomeDirectory \
@@ -150,22 +150,27 @@ while IFS= read -r candidate; do
   grep -q '^name:' "${candidate_cache}" || continue
 
   directory_name="${candidate}"
+  if passwd_contains "${candidate}"; then
+    directory_passwd_present="true"
+  else
+    directory_passwd_present="false"
+  fi
   break
 done < <(awk '{ print $1 }' "${output_directory}/dscl-users.txt")
 
 [[ -n "${directory_name}" ]] ||
-  fail "no second non-files Open Directory account was available"
+  fail "no second Directory Service account was available"
 
 mv "${candidate_dscl}" "${output_directory}/directory.dscl.txt"
 mv "${candidate_cache}" "${output_directory}/directory.dscacheutil.txt"
 
 {
-  printf 'schema=ployz-macos-nss-directory-source-v1\n'
+  printf 'schema=ployz-macos-nss-directory-source-v2\n'
   printf 'current_name=%s\n' "${current_name}"
   printf 'current_uid=%s\n' "${current_uid}"
   printf 'lookup_name=%s\n' "${directory_name}"
   printf 'current_absent_from_passwd=true\n'
-  printf 'lookup_absent_from_passwd=true\n'
+  printf 'lookup_present_in_passwd=%s\n' "${directory_passwd_present}"
   printf 'current_dscl_resolved=true\n'
   printf 'lookup_dscl_resolved=true\n'
   printf 'current_dscacheutil_resolved=true\n'
