@@ -14,6 +14,6 @@ async-grpc-client-server	approved	migration/dependencies/async-grpc-client-serve
 grpc-metadata-interceptor	approved	migration/dependencies/grpc-metadata-interceptor.md	tonic;tower	0.14.6;0.5.3	MIT	no	internal/grpcversion	-
 semantic-version-parsing	approved	migration/dependencies/semantic-version-parsing.md	semver[std]	1.0.28	MIT OR Apache-2.0	no	internal/grpcversion	-
 unix-account-lookup-chown	blocked	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	-
-docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	-
+docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	/root/docker_engine_unblock
 http2-tls-client	blocked	migration/dependencies/http2-tls-client.md	reqwest	0.13.4	MIT OR Apache-2.0	yes	internal/corrosion	/root/http2_tls_unblock
 userspace-wireguard-tunnel	blocked	migration/dependencies/userspace-wireguard-tunnel.md	-	-	-	yes	internal/machine/network/tunnel	-
