@@ -8,15 +8,15 @@
 | License | `Apache-2.0` |
 | Research date | `2026-08-11` UTC |
 | Request | No request file was present; capability was delegated directly for `upstream/uncloud/internal/docker` |
-| Exact blocker | A fresh adversarial review of commit `89bddf3` returned **REJECT**. Approval is blocked on D01-D05: explicit human authority for plain TCP/unverified-TLS environment parity; proof of lazy construction and daemon-start retry despite Bollard's socket-existence check; native exact-feature/exact-lock evidence on shipped macOS amd64/arm64 and Linux arm64; a declared Docker Engine/API support floor with corrected-modifier operation tests; and pull/push cancellation proofs showing connection closure and no orphan progress. |
+| Exact blocker | Approval remains blocked on three falsifiable gates: D01 requires explicit human authority for the frozen plain-TCP and unverified-TLS environment behavior; D03 requires native exact-feature/exact-lock evidence on shipped macOS amd64/arm64 and Linux arm64; and D04 requires a declared Docker Engine/API support floor plus the complete caller-operation matrix at that floor. New Go-vs-Rust probes close the prior D02 lazy-construction and D05 stream-cancellation findings for this candidate. |
 
 ## Verdict
 
 `bollard` 0.21.0 remains the clear idiomatic and adoption leader and the only
 candidate that covers the required Engine API surface without local protocol
-reimplementation. It remains the provisional selection, but the completed
-fresh adversarial review rejected approval until D01-D05 below are closed and
-a fresh re-review accepts the evidence.
+reimplementation. It remains the provisional selection. Executable follow-up
+probes close the prior lazy-construction and stream-cancellation findings, but
+the candidate cannot be approved while D01, D03, and D04 remain open.
 
 Approval must retain all integration requirements in this record. In
 particular, Bollard's documented `negotiate_version` mutates its stored client
@@ -71,6 +71,14 @@ probe observed `/version` followed by `/v1.41/_ping`,
   `DOCKER_TLS_VERIFY`. The exact [TLS source](https://docs.rs/crate/bollard/0.21.0/source/src/docker.rs)
   uses rustls, native roots plus `ca.pem`, and `cert.pem`/`key.pem` client
   authentication.
+- The exact connection source also proves an environment mismatch that generic
+  connection documentation obscures. Bollard selects TLS for a `tcp://` host
+  whenever `DOCKER_TLS_VERIFY` merely exists, even if it is empty, and otherwise
+  ignores `DOCKER_CERT_PATH` for that host. The frozen Go `FromEnv` path instead
+  enables TLS whenever `DOCKER_CERT_PATH` is non-empty and disables server
+  verification when `DOCKER_TLS_VERIFY` is empty. An adapter cannot reconcile
+  these cases by calling `connect_with_defaults`; D01 must explicitly settle
+  them before the adapter chooses a constructor.
 - The natural API supplies typed create/start/stop/remove/inspect/list
   operations, info/version/ping, network operations, event streams, log streams,
   and status-bearing `DockerResponseServerError`. Image pull and push are
@@ -112,12 +120,12 @@ probe observed `/version` followed by `/v1.41/_ping`,
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | Typed container/image/network/info operations; missing-image status classification; streaming pull/push progress and stream errors; platform-aware push; cancellation; API compatibility | Public APIs cover the required surface. A Rust 1.96 loopback probe verified negotiated downgrade state, required version-prefix correction, streamed pull/push objects, platform encoding, an encoded empty `X-Registry-Auth` header for push, and a typed 404 with exact daemon message. It did not prove lazy daemon-start construction/retry, a declared oldest supported Engine/API, the complete caller operation surface at that floor, or transport-level pull/push cancellation. | **`blocked`: D02, D04, D05** |
+| Behavior | Typed container/image/network/info operations; missing-image status classification; streaming pull/push progress and stream errors; platform-aware push; cancellation; API compatibility | Public APIs cover the required surface. Rust 1.96 loopback probes verified negotiated downgrade state, required version-prefix correction, streamed pull/push objects, platform encoding, empty push auth, typed 404 errors, missing/refused Unix-socket reconstruction, narrow retry classification, cancellation-as-success for daemon startup, prompt pull/push transport EOF, producer termination, and exactly-once output closure. The matching Go probe characterized the frozen post-progress cancellation result as the wrapped text `decode image pull/push message: context canceled`. The oldest supported Engine/API and its complete operation matrix remain undeclared and untested. | **`blocked`: D04; D02 and D05 closed** |
 | License and security | Apache-2.0-compatible permissive graph; no known vulnerability; safe local socket and verified mutual-TLS modes | Direct license is Apache-2.0. All 120 external packages in the exact all-target probe graph used Apache/MIT/ISC/BSD/Unicode/Unlicense/Zlib-family compatible terms. RustSec found no vulnerability or warning in the exact lock. No package-owned `unsafe` or raw socket FFI is needed; Ring and platform certificate/socket crates encapsulate their native/unsafe internals. Docker warns that daemon access is effectively host-root access, so endpoints remain trusted configuration. The frozen environment behavior can select plain TCP or unverified TLS, while this record intentionally permits only local sockets or verified TLS. | **`blocked`: D01 requires human authority** |
 | Platforms and targets | Shipped Linux/macOS amd64/arm64, Unix-socket local daemon, configured TCP/mTLS | Linux x86_64 Rust 1.96 run/check passed. `pipe`'s Unix connector is target-gated portable Tokio/hyperlocal code; `ssl` uses rustls and native roots. The Linux-to-Intel-macOS check reached Ring's C compilation and failed because no Apple target C compiler/SDK is installed. Bollard has first-party Linux/Windows transport integration CI, but neither cross-compilation nor upstream CI proves the shipped native targets under this exact feature set and lock. | **`blocked`: D03** |
 | Maintenance and Rust version | Active current release compatible with workspace Rust 1.96 | 0.21.0 was current and non-yanked; repository activity continued on the research date. The crate declares no `rust-version`, but the exact graph built, ran, and passed warnings-denied Clippy with Rust 1.96.0. | `pass` |
 | Architectural constraints | Idiomatic async API; no subprocess or bespoke Docker REST implementation; bounded build/runtime surface | Bollard uses Tokio/futures streams and generated Engine models directly. Exact features exclude BuildKit, SSH, WebSocket, chrono/time, and code generation at consumer build time. The focused all-target lock contains 120 external packages, largely the already-idiomatic Tokio/Hyper/Rustls stack. | `pass` |
-| Critical review | Fresh adversarial review for container control | A fresh adversarial review of commit `89bddf3` completed and returned **REJECT**, identifying D01-D05 below. | **`fail`: D01-D05 must close, then be re-reviewed** |
+| Critical review | Fresh adversarial review for container control | The prior review of `89bddf3` rejected D01-D05. The follow-up probes close D02 and D05; this revised blocked record requires fresh adversarial review to confirm those closures and the narrowed D01/D03/D04 blocker. | `pending fresh review` |
 
 ## Candidate comparison
 
@@ -132,11 +140,11 @@ Counts are official crates.io snapshots from 2026-08-11.
 | [`bollard-next` 0.18.1](https://crates.io/crates/bollard-next/0.18.1) | A temporary alternate publication of the same design, pinned to older Engine 1.45 stubs and lacking current upstream improvements. | 99,923 total / 2,819 recent downloads; 7 reverse dependents; last release 2024-10-19 versus active mainline Bollard 0.21.0. | Rejected: obsolete, much less adopted duplicate of the selected project. |
 | Direct Docker REST implementation | Could reproduce only the currently used endpoints. | No ecosystem maintenance, schema generation, cross-platform connector, or security review; would duplicate status, streaming, versioning, TLS, and transport logic already maintained by Bollard. | Rejected by architectural gate. |
 
-## Adversarial rejection gates
+## Adversarial gates
 
-The review findings below are blocking evidence requirements, not evidence that
-has already been obtained. Closing them requires updating this record with
-reproducible artifacts and then obtaining a fresh adversarial re-review.
+D01, D03, and D04 are blocking evidence requirements. D02 and D05 are retained
+as closed findings so a fresh reviewer can audit the exact closure evidence
+rather than relying on a summary.
 
 ### D01 — Human authority for environment and transport parity
 
@@ -152,21 +160,27 @@ adding a permissive certificate verifier. The matrix must also settle whether
 trusted plain TCP, if any, is limited to loopback or another precisely bounded
 environment.
 
-### D02 — Lazy construction and daemon-start retry
+### D02 — Closed: lazy construction and daemon-start retry
 
 Bollard 0.21.0's Unix constructor checks that the socket path exists and can
-return `SocketNotFoundError` before any Engine request is made. The port must
-prove that client construction cannot turn a daemon that has not started yet
-into a permanent pre-retry failure. Acceptable evidence is an executable design
-that constructs lazily or reconstructs inside the retry loop, with tests for:
+return `SocketNotFoundError` before any Engine request is made. The Rust 1.96
+probe proved a viable, dependency-natural policy: retain validated connection
+configuration rather than a failed client and reconstruct `Docker` on every
+daemon-readiness attempt. It passed:
 
 - a missing socket at startup that subsequently appears;
 - connection refusal followed by daemon readiness;
-- cancellation returning the oracle-equivalent result;
-- non-connect errors remaining permanent; and
-- the exact bounded 100 ms-to-1 s backoff without a busy loop.
+- cancellation returning success, matching frozen `WaitDaemonReady`; and
+- a 401 `DockerResponseServerError` remaining permanent.
 
-The existing loopback API probe did not exercise these cases.
+Only `SocketNotFoundError` and `HyperLegacyError` whose inner error reports
+`is_connect()` were retryable. The first reconstruction occurred after the
+100 ms initial wait and the next after the 150 ms multiplied wait; the probe did
+not busy-loop. Exact randomized exponential scheduling through the frozen
+100 ms initial interval, 1.5 multiplier, 0.5 randomization factor, and 1 s cap is
+package-owned behavior and needs a separately approved backoff capability; it
+is not a reason to reject Bollard. The package must not replace it with the
+deterministic probe scheduler.
 
 ### D03 — Native shipped-platform evidence
 
@@ -191,26 +205,52 @@ cover `DOCKER_API_VERSION` override precedence and old-daemon/fallback behavior.
 The installed CLI version and the current fake Engine do not establish a
 support floor.
 
-### D05 — Pull and push cancellation
+### D05 — Closed: pull and push cancellation
 
-Run separate slow pull and slow push probes, using a controllable fake Engine
-or a live daemon where the transport can be observed. Cancel after response
-headers and at least one progress item, then prove all of the following:
+Separate slow pull and push probes used controllable TCP fake Engines. After
+headers and one progress item, the frozen Go response loop and Bollard adapter
+both proved:
 
-- the TCP or Unix connection closes promptly, observed as server EOF/reset;
+- the TCP connection closes promptly, observed as server EOF/reset within one
+  second;
 - the producer/forwarder task terminates and its output channel closes exactly
   once;
-- no progress arrives after cancellation and no task remains orphaned; and
-- cancellation racing stream error and normal completion has deterministic,
-  oracle-compatible results.
+- no progress arrives after cancellation and no task remains orphaned.
 
-The current policy to drop the stream and never detach its forwarding task is
-necessary, but it is not transport-level cancellation evidence and does not
-close this gate.
+The Go probe copied the frozen response-loop function byte-for-byte because the
+oracle module declares an unavailable Go 1.26 toolchain; it used the oracle's
+exact Docker 28.5.0 client. Both operations produced one `first` progress item,
+then the exact wrapped error text
+`decode image pull/push message: context canceled`, then channel closure, while
+the server observed request cancellation. This is a frozen limitation: cancel
+while the decoder is blocked is surfaced as a decode error wrapping
+`context.Canceled`, not as a bare cancellation error. The Rust adapter probe
+matched that observable category/text, dropped the Bollard stream before
+reporting it, closed its receiver once, joined the producer, and observed the
+server-side EOF/reset. Package tests must use a typed error whose source remains
+cancellation rather than storing only a string.
+
+A gated-reader Go probe also fixed the ordering contract that the transport
+probe alone could not distinguish:
+
+- cancellation already ready when a decoded stream error reaches the
+  post-decode select produces bare `context canceled`, suppressing that stream
+  error;
+- a decoded stream error whose unbuffered send is already blocked before
+  cancellation still delivers that stream error (`boom` in the probe); and
+- EOF observed before cancellation closes the channel without a cancellation
+  item.
+
+These are ordered outcomes, not a promise that wall-clock races always pick one
+result. The Rust forwarder must preserve them: once an output send is pending it
+must not be retroactively replaced; EOF already observed wins; otherwise a
+ready cancellation after a decoded item wins, while cancellation of a pending
+body read retains the wrapped-decode form proven above. Add deterministic
+package tests for all four orderings.
 
 ## Selected integration
 
-If D01-D05 are closed and a fresh re-review accepts the evidence, use exactly:
+If D01, D03, and D04 are closed and a fresh re-review accepts the evidence, use exactly:
 
 ```toml
 bollard = { version = "=0.21.0", default-features = false, features = ["pipe", "ssl"] }
@@ -270,7 +310,10 @@ Production code must return typed configuration errors rather than use the
   second time.
 - Cancellation drops the in-flight future/stream and its response body. Any
   task that forwards progress must select on its cancellation token and drop
-  the stream before reporting cancellation. Never detach a pull/push task.
+  the stream before reporting cancellation. Never detach a pull/push task. When
+  cancellation interrupts a blocked progress decode, preserve the frozen
+  wrapped `decode image pull/push message: context canceled` presentation and a
+  typed cancellation source; do not normalize it to a bare cancellation error.
 - Match `DockerResponseServerError { status_code: 404, .. }` for the oracle's
   missing-image retry and other not-found branches. Match transport/connect
   errors narrowly for daemon-start retry; authorization, TLS, JSON, API, and
@@ -334,13 +377,21 @@ credential-helper executable or a hand-written credential-store protocol.
 - SSH Docker hosts, Docker contexts, BuildKit, WebSockets, and Podman discovery
   are not approved by this feature set. Return to the dependency gate before
   enabling their features or advertising those modes.
+- Bollard's legacy tar build, container upload/download archive, and image
+  import/export APIs are available without the `buildkit` feature. The frozen
+  `internal/docker` package and its direct callers do not own Compose builds;
+  frozen `internal/cli.BuildServices` delegates those to Docker Compose. This
+  record therefore does not authorize substituting Bollard's legacy build API
+  for Compose/BuildKit behavior. A later package requiring BuildKit must return
+  to the dependency gate instead of selecting the disabled builder variant,
+  whose source deliberately reaches `unimplemented!` without the feature.
 
 ## Verification command and probe result
 
-The focused probe used Rust 1.96.0 with the exact dependency line, Tokio 1.53,
-`futures-util` 0.3, and `http` 1. A local TCP fake Engine returned API 1.41,
-two pull progress objects, a 404 JSON error, and one push progress object. It
-asserted:
+The first focused probe used Rust 1.96.0 with the exact dependency line, Tokio
+1.53, `futures-util` 0.3, and `http` 1. A local TCP fake Engine returned API
+1.41, two pull progress objects, a 404 JSON error, and one push progress object.
+It asserted:
 
 - version negotiation selected 1.41;
 - unmodified Bollard emitted unversioned paths (the characterization failure);
@@ -350,6 +401,28 @@ asserted:
 - missing-image response became status 404 with message
   `No such image: missing`;
 - unauthenticated push still sent a non-empty encoded `X-Registry-Auth` header.
+
+The follow-up Rust probe used the same exact Bollard line and a fresh 121-crate
+lock. Its fake Unix daemon and slow TCP Engines asserted:
+
+- missing socket followed by daemon readiness reconstructs rather than
+  retaining `SocketNotFoundError`;
+- connection refusal followed by readiness reconstructs and succeeds;
+- only socket absence and an inner `is_connect()` legacy error are retryable;
+- daemon-start cancellation returns success and 401 remains permanent;
+- both pull and push deliver one progress item, then cancellation drops the
+  stream, reports the frozen wrapped cancellation, closes output exactly once,
+  joins the producer, and causes server EOF/reset within one second.
+
+The matching Go probe used Docker client 28.5.0 and an exact copy of frozen
+`processPullPushImageResp`. Pull and push each printed:
+
+```text
+first="first" cancel="decode image pull/push message: context canceled" channel_closed=true server_canceled=true
+race cancel-before-decoded-error second_open=true error="context canceled" channel_closed=true
+race decoded-error-before-cancel second_open=true error="boom" channel_closed=true
+race eof-before-cancel second_open=false error="<nil>" channel_closed=true
+```
 
 Commands and observed results:
 
@@ -375,23 +448,37 @@ cargo +1.96.0 check --locked --offline --all-targets \
 cargo audit --no-fetch --deny warnings \
   --file /tmp/ployz-bollard-probe/Cargo.lock
 # no vulnerabilities or warnings in 121 locked packages including the probe root
+
+go run .
+# from /tmp/ployz-docker-go-probe: both pull and push pass the exact cancellation characterization
+
+cargo +1.96.0 run --locked \
+  --manifest-path /tmp/ployz-bollard-unblock-probe/Cargo.toml
+# D02 and D05 cases pass
+
+cargo +1.96.0 clippy --locked --all-targets \
+  --manifest-path /tmp/ployz-bollard-unblock-probe/Cargo.toml -- -D warnings
+# pass
+
+cargo audit --no-fetch --deny warnings \
+  --file /tmp/ployz-bollard-unblock-probe/Cargo.lock
+# no vulnerabilities or warnings in 121 locked packages including the probe root
 ```
 
-The installed Docker CLI was 29.1.3/API 1.52, but the daemon socket denied this
-VM user, so no live-daemon mutation was attempted. The loopback probe was fully
-executable and required no Docker daemon.
+The installed Docker CLI and now-accessible daemon are 29.1.3/API 1.52 with a
+minimum API of 1.44. That current Linux amd64 daemon does not establish the
+oldest supported floor or close D03/D04, so no current-daemon success is used as
+a substitute for those gates. The loopback probes are fully executable and do
+not mutate daemon resources.
 
 ## Review
 
-This is critical container-control functionality. A fresh adversarial review of
-commit `89bddf3` completed and returned **REJECT**. Its exact blocking findings
-are D01-D05 above: unresolved human authority for insecure-environment parity,
-no lazy-construction/daemon-start retry proof, missing native shipped-platform
-evidence, no declared and exercised Engine/API support floor, and no
-transport-level pull/push cancellation proof. The prior research evidence and
-provisional Bollard selection remain valid inputs, but they do not override the
-rejection. Only documented closure of every finding followed by a fresh clean
-re-review can move this record to `approved`.
+This is critical container-control functionality. The prior adversarial review
+of `89bddf3` returned **REJECT** on D01-D05. Follow-up executable evidence closes
+D02 and D05, leaving D01, D03, and D04 as the exact blocker. A fresh adversarial
+review of this revised record is required before integration; a clean review of
+the record would validate the narrowed blocked verdict, not approve dependency
+use while those three gates remain open.
 
 Affected package: `upstream/uncloud/internal/docker` / future
 `crates/ployz-internal-docker`. Direct dependents that informed the decision are
