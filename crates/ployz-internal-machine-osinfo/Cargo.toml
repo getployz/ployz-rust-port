@@ -1,0 +1,12 @@
+[package]
+name = "ployz-internal-machine-osinfo"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+
+# Keep this migration crate independently testable until the integrator adds it
+# to the repository workspace.
+[workspace]
