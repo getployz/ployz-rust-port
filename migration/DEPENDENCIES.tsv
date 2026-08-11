@@ -8,7 +8,7 @@ interactive-terminal-runtime	blocked	migration/dependencies/interactive-terminal
 terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	console;comfy-table	0.16.4;8.0.0	MIT	yes	internal/cli/tui	-
 terminal-output-profile	queued	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	-
 http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
-protobuf-codegen-runtime	adversarial-review	migration/dependencies/protobuf-codegen-runtime.md	protobuf;protobuf-codegen;protoc-bin-vendored	3.7.2;3.7.2;3.2.0	MIT;BSD-3-Clause;Apache-2.0	yes	internal/machine/api/pb	019ff0d7-eb51-7d22-90b4-edd06385edec
+protobuf-codegen-runtime	blocked	migration/dependencies/protobuf-codegen-runtime.md	-	-	-	yes	internal/machine/api/pb	-
 async-grpc-client-server	queued	migration/dependencies/async-grpc-client-server.md	-	-	-	yes	internal/machine/api/pb,internal/grpcversion	-
 unix-account-lookup-chown	rejected-research-queued	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	-
 docker-engine-client	queued	migration/dependencies/docker-engine-client.md	-	-	-	yes	internal/docker	-
