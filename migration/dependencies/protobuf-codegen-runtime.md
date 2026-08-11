@@ -4,11 +4,11 @@
 | --- | --- |
 | Status | `blocked` |
 | Capability | Reproducible proto3 message generation and binary runtime for the five `internal/machine/api/pb` schemas, including well-known types, `google.rpc.Status`, unknown-field retention, and observable descriptors |
-| Selected dependency | **None.** `protobuf`/`protobuf-codegen` 3.7.2 plus `protoc-bin-vendored` 3.2.0 is rejected after adversarial review; Google `protobuf` 4.35.1-release is the leading maintained candidate but does not yet pass the stable-descriptor and reproducible-compiler gates |
-| License | Runtime/codegen/wrapper: `MIT`; bundled `protoc` v31.1: `BSD-3-Clause`; vendored Google Status schema: `Apache-2.0` |
+| Selected dependency | **None.** `protobuf`/`protobuf-codegen` 3.7.2 plus `protoc-bin-vendored` 3.2.0 is rejected after adversarial review; Google `protobuf` 4.35.1-release is the leading maintained candidate but does not yet have a reviewed source-only compiler/upb contract proven on every supported Linux/macOS amd64/arm64 host |
+| License | Rejected rust-protobuf runtime/codegen/wrapper: `MIT`; protobuf compilers and Google-v4 runtime/codegen: `BSD-3-Clause`; source-build Abseil and vendored Google Status schema: `Apache-2.0` |
 | Research date | `2026-08-11` UTC |
-| Request | Controller delegation for `upstream/uncloud/internal/machine/api/pb`; no request file existed at exact base `e86b2edc8d13c72e4ceaecc0b22a9ad778a0724f` |
-| Blocker | No candidate passes every hard gate: rust-protobuf 3.7.2 drops unknown group fields and is approaching EOL; Prost 0.14.4 drops ordinary unknown fields and lacks generated-message reflection; Google 4.35.1-release passes the wire probes but still documents codegen as beta, exposes descriptor bytes only through unstable/internal API, and has no approved exact-protoc 35.1 source/offline host provisioning strategy |
+| Request | Controller delegation for `upstream/uncloud/internal/machine/api/pb`; no request file existed at exact integration base `bb1d841c3ad59874c5076469a16aeb0ac409c3ea` |
+| Blocker | No candidate passes every hard gate: rust-protobuf 3.7.2 drops unknown group fields and is approaching EOL; Prost 0.14.4 drops ordinary unknown fields; Google 4.35.1-release passes the wire probes and exact-protoc 35.1 can be built offline from pinned official source archives on Linux amd64, but there is no reviewed source-tool wrapper or native build/codegen/upb evidence across every supported Linux/macOS amd64/arm64 host |
 
 ## Scope and required behavior
 
@@ -52,9 +52,21 @@ and [field-presence rules](https://protobuf.dev/programming-guides/field_presenc
   use Go `protojson`; this decision does not silently select a protobuf JSON
   implementation. JSON behavior requires its own parity work if the package
   packet puts those callers in scope.
+- [`machine/cluster.go`](../../upstream/uncloud/internal/machine/cluster.go)
+  uses `proto.Equal` once to suppress an unchanged `MachineInfo` store write.
+  Both operands on that path are locally constructed or loaded through
+  `protojson` with unknown JSON fields discarded. Google v4's public
+  `protobuf::message_eq` passed equal/different known-field fixtures and is a
+  natural implementation input for that exact caller. Its
+  [official source](https://docs.rs/crate/protobuf/4.35.1-release/source/src/upb_kernel/message.rs)
+  documents lossy behavior for unknown fields, so it must not be generalized
+  into an unknown-sensitive equality contract.
 - No handwritten caller invokes `ProtoReflect` or a descriptor API; those calls
-  occur only inside generated Go. Descriptors are nevertheless observable from
-  the public generated API and are required for parity tests and future callers.
+  occur only inside generated Go. Under `PORTING.md`, the generated Go API shape
+  and hypothetical future callers are not behavior gates. Descriptor/reflection
+  quality remains relevant to schema goldens and candidate comparison, but the
+  absence of stable generated-message reflection is not a caller-observable hard
+  gate at this base.
   [`common.go`](../../upstream/uncloud/internal/machine/api/pb/common.go) adds IP
   conversions and [`cluster.go`](../../upstream/uncloud/internal/machine/api/pb/cluster.go)
   adds network validation; neither is part of this message/codegen dependency
@@ -138,7 +150,7 @@ and [field-presence rules](https://protobuf.dev/programming-guides/field_presenc
 - The frozen oracle already vendors the authoritative input
   [`google/rpc/status.proto`](../../upstream/uncloud/internal/machine/api/vendor/google/rpc/status.proto).
   Copy that file byte-for-byte, not a newer Google APIs revision. Its SHA-256
-  at exact base `e86b2edc8d13c72e4ceaecc0b22a9ad778a0724f` is
+  at exact base `bb1d841c3ad59874c5076469a16aeb0ac409c3ea` is
   `b35706fa0e4b2354f67f8d7b8e6b55584d0c4dae920d5f6d2bc2e7ba22f9d6c1`.
   It carries an Apache-2.0 header and has exactly `int32 code = 1`, `string
   message = 2`, and repeated `google.protobuf.Any details = 3`. Vendor the
@@ -154,6 +166,53 @@ and [field-presence rules](https://protobuf.dev/programming-guides/field_presenc
   defines `Empty`, `Timestamp`, `Duration`, and `Any`. In the rejected probe,
   the v31.1 compiler include root resolves their source imports and the Rust
   generator maps their message types to `protobuf::well_known_types`.
+
+### Fresh Google successor and source-compiler recheck
+
+- Google's newest published Rust crates are the prerelease `protobuf`,
+  `protobuf-codegen`, and `protobuf-well-known-types` 4.36.0-rc.2,
+  corresponding to the official
+  [protobuf v36.0-rc2 release](https://github.com/protocolbuffers/protobuf/releases/tag/v36.0-rc2)
+  of 2026-08-03. Its official
+  [`protobuf-codegen` README](https://github.com/protocolbuffers/protobuf/blob/v36.0-rc2/rust/release_crates/protobuf_codegen/README.md)
+  still calls codegen beta, and the compiler source still requires the explicit
+  [`experimental-codegen=enabled`](https://github.com/protocolbuffers/protobuf/blob/v36.0-rc2/src/google/protobuf/compiler/rust/context.cc)
+  opt-in and warns that future versions will break existing code. Inspection of
+  the exact crate and generator source found no new stable Rust descriptor or
+  reflection API; embedded upb descriptor bytes remain under `__unstable`,
+  while the runtime documents `__internal` as outside semver. This successor
+  was source-inspected only, not run through the executable matrix or target
+  checks, so it cannot replace the stable 4.35.1 probe coordinates. Its beta
+  codegen and unstable reflection are integration risks, not hard observable
+  gates at this base.
+- The exact stable compiler now has a demonstrated source-only route. The
+  official [protobuf 35.1 source archive](https://github.com/protocolbuffers/protobuf/releases/download/v35.1/protobuf-35.1.tar.gz)
+  has SHA-256
+  `f0b6838e7522a8da96126d487068c959bc624926368f3024ac8fd03abd0a1ac4`;
+  its CMake metadata pins Abseil 20250512.1, whose official
+  [source archive](https://github.com/abseil/abseil-cpp/releases/download/20250512.1/abseil-cpp-20250512.1.tar.gz)
+  has SHA-256
+  `9b7a064305e9fd94d124ffa6cc358592eb42b5da588fb4e07d09254aa40086db`.
+  CMake 4.3.4 configured those two unpacked trees with
+  `FETCHCONTENT_FULLY_DISCONNECTED=ON` and an explicit
+  `FETCHCONTENT_SOURCE_DIR_ABSL`; a `strace -f -e trace=network` configuration
+  probe recorded no socket or connect call. Building the `protoc` target with
+  `protobuf_BUILD_LIBUPB=ON` produced `libprotoc 35.1`. The upb option is
+  mandatory for this Rust-enabled compiler; disabling it fails because the
+  Rust generator consumes the bundled upb reflection headers.
+- That source-built compiler generated all seven Rust output files for the six
+  explicit inputs byte-for-byte identically to the official Linux prebuilt
+  compiler output: 36,608 lines, seven matching SHA-256 values, and a clean
+  recursive diff. The source-built path then passed all five focused Google-v4
+  runtime tests, including proto3 optional presence, false-valued oneof
+  presence, unknown enum numerics, raw interleaved/non-minimal unknown bytes,
+  and an unknown group. This removes the claim that an exact offline source
+  route is unknown on Linux. It does **not** approve a production wrapper:
+  native macOS amd64/arm64 source builds, archive/cache layout, license
+  installation, compiler prerequisites, and failure behavior still need a
+  reviewed exact contract. A native Windows build and clean-build cost remain
+  useful planning evidence, but are not hard gates for the frozen release
+  targets.
 
 ### Maintenance, adoption, and security snapshot
 
@@ -192,16 +251,30 @@ audit.
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | All five proto3 schemas; exact fields/numbers/types, implicit and explicit presence/defaults, enums, all three oneofs, binary round trips, WKT/Any/Status, unknown-field retention, observable descriptors | The exact all-schema probe generated and compiled seven modules, exercised both optional fields, all three oneofs, WKT/Any/Status, all six file descriptors and 38 service methods, unknown enum numerics, and all six wire types. rust-protobuf retained the four non-group unknown kinds semantically but re-encoded an unknown group as empty; Go 1.36.9 and Google 4.35.1 preserved the same group exactly. | **`fail` for 3.7.2.** Byte/order normalization is allowed by protobuf's noncanonical-serialization contract, but complete group loss violates the required unknown-field retention behavior. Prost also fails; Google v4 passes this gate. |
+| Behavior | All five proto3 schemas; exact fields/numbers/types, implicit and explicit presence/defaults, enums, all three oneofs, binary round trips, WKT/Any/Status, unknown-field retention, observable descriptors | The exact all-schema probe generated and compiled seven modules, exercised both optional fields, all three oneofs, WKT/Any/Status, all six file descriptors and 38 service methods, unknown enum numerics, all six wire types, repeated same-number unknowns, and unknowns nested in ordinary/WKT/Status/Any messages. rust-protobuf retained the four non-group unknown kinds semantically but re-encoded an unknown group as empty; Go 1.36.9 and Google 4.35.1 preserved every focused unknown. | **`fail` for 3.7.2.** Byte/order normalization is allowed by protobuf's noncanonical-serialization contract, but complete group loss violates the required unknown-field retention behavior. Prost also fails; Google v4 passes this gate. |
 | License and security | Permissive licenses; patched untrusted-input path; no network/runtime side effect | MIT runtime/codegen/wrapper, BSD-3-Clause compiler, Apache-2.0 Status source. 3.7.2 is the first RustSec-fixed release and the probe audit was clean. Runtime is pure Rust but contains internal unsafe optimization; vendored `protoc` is a precompiled build-host executable. The inspected 3.2.0 architecture crates do not package a standalone upstream protobuf BSD license beside the binary, so a downstream notice copy is required before redistribution. | `pass` for crate license classes and known advisories, conditional on explicit compiler license notice/provenance; this does not override the behavior failure |
-| Platforms and targets | Rust 1.96; Linux/macOS amd64 and arm64; reproducible cross-build behavior without system `protoc` | Rust 1.96 Linux generation passed. From the Linux build host, the exact rejected-3.7.2 probe also passed `cargo check` for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, and `x86_64-pc-windows-gnu`. Vendored codegen runs a build-host compiler and emits target-independent Rust. | `pass` for the rejected stack; native macOS generation remains a successor-candidate acceptance command |
+| Platforms and targets | Rust 1.96; Linux/macOS amd64 and arm64; reproducible builds without ambient `protoc` | Rust 1.96 Linux generation passed. From the Linux build host, the exact rejected-3.7.2 probe passed `cargo check` for Linux amd64/arm64 and macOS amd64/arm64. The fresh Google-v4 check passed Linux x86_64 and Linux aarch64 with an explicit cross C compiler; Apple-arm64 failed at upb C compilation because the Linux host had no Apple target compiler/SDK. A supplemental Windows GNU check also passed, but Windows is not a hard release target at this base. | **Incomplete for Google v4:** native source-protoc generation and upb compilation are not proven on all four supported Linux/macOS host/architecture combinations |
 | Maintenance and Rust version | Compatible with Rust 1.96 and sufficiently maintained for a foundational wire contract | Exact stack compiles on 1.96 and the patched stable release remains heavily used. However, its maintainer explicitly says the implementation is approaching EOL and needs a new maintainer. Google's replacement is actively released but still labels codegen beta. | **`fail` for 3.7.2** under the existing active-maintenance hard gate; adoption and exact pinning are not a lifecycle exception |
-| Architectural constraints | Idiomatic typed message API; full stable descriptors; reviewable deterministic generation; no async gRPC/runtime bundled | rust-protobuf has a stable native reflection API and deterministic generation. Google v4 has an idiomatic native API and embedded descriptor bytes, but the generated symbol is `__unstable` and its type is under runtime `__internal`, which explicitly carries no semver guarantee. Neither graph includes an async runtime or transport generator. | `pass` for 3.7.2's architecture in isolation; **`fail` for Google v4's required stable descriptor surface** |
+| Architectural constraints | Idiomatic typed message API; reviewable deterministic generation; no async gRPC/runtime bundled | Google v4 has an idiomatic owned/view/mut API and embeds descriptor bytes, though only under generated `__unstable` and runtime `__internal` names. No current handwritten caller requires runtime reflection, and a separate deterministic `FileDescriptorSet` golden covers schema inspection without coupling production code to those unstable symbols. Neither graph includes an async runtime or transport generator. | `pass` for required architecture; unstable reflection is a recorded limitation, not a hard gate at this base |
 
-The record remains `blocked` because no candidate passes all rows. A reviewer
-cannot convert the two 3.7.2 failures into editorial follow-ups: approval would
-require either a new passing release/candidate or an explicit human change to
-the unknown-group and active-maintenance requirements.
+The record remains `blocked` because no candidate passes all rows. Google v4 is
+the only candidate that passes the observable wire and maintenance gates, but
+its required native source-tool/upb matrix is incomplete.
+
+### Smallest remaining falsifiable blocker set
+
+For the leading Google-v4 candidate, wire behavior, schema/import compatibility,
+Rust 1.96, deterministic generation, licensing classes, and the point-in-time
+security audit pass. One compound, executable blocker remains: define a reviewed
+wrapper that pins and verifies the protobuf 35.1 and Abseil 20250512.1 source
+archives, installs both license texts, configures fully disconnected with no
+`PATH` or network fallback, fails explicitly on unsupported hosts, and then
+prove that exact wrapper plus the Google upb runtime through native generation
+and Rust checks on Linux and macOS amd64/arm64. Cache and build cost must be
+recorded for integration planning but are tie-breakers, not pass/fail gates.
+
+The blocker is falsified only when that four-host matrix passes. It requires no
+subjective tie break or human decision.
 
 ## Candidate comparison
 
@@ -212,7 +285,7 @@ are supporting evidence, not a quality guarantee.
 | --- | --- | --- | --- | --- |
 | `protobuf = 3.7.2` + `protobuf-codegen = 3.7.2` + vendored `protoc` | Retains varint/fixed32/fixed64/length-delimited unknown values and unknown enum numbers; full generated/dynamic reflection; optional fields, all oneofs, WKT mapping, and Status compile. It normalizes raw unknown spelling/order and drops unknown groups entirely. | 166.9M runtime downloads / 567 reverse dependents; current stable 3.7.2 is RustSec-patched, but the project explicitly says it is approaching EOL and needs a maintainer. | Pure-Rust runtime; 12,360 deterministic generated lines; exact `protoc` binary packages add download/audit weight. | **Rejected on two hard gates:** loss of a well-formed unknown wire field and approaching-EOL maintenance. |
 | `prost = 0.14.4`, `prost-build = 0.14.4`, `prost-types = 0.14.4` | Excellent typed proto3/optional/oneof/WKT support and can emit a descriptor-set sidecar, but normal generated messages discard ordinary unknown fields. The exact probe decoded `[0a 00 98 06 7b]` and re-encoded only `[0a 00]`. Prost explicitly has no runtime reflection/message descriptors. Unknown enum `i32` values are preserved, which does not repair general unknown-field loss. | 526.8M runtime downloads / 4,386 reverse dependents; released 2026-06-07, MSRV 1.85, Apache-2.0. The project is active but describes maintenance bandwidth as limited/passive. | Most idiomatic/readable and most adopted; the probe generated 820 lines and a ten-file descriptor set, cross-checked Apple arm64 and Windows GNU targets, and contained no async runtime. `prost-reflect::DynamicMessage` would change the application representation and does not make typed messages retain unknowns. | **Rejected on behavior hard gate despite overwhelming popularity.** Sources: [generated-code model](https://github.com/tokio-rs/prost/tree/v0.14.4#generated-code), [unknown skip path](https://docs.rs/prost/0.14.4/src/prost/encoding.rs.html#166-199), and [descriptor limitation](https://github.com/tokio-rs/prost/tree/v0.14.4#accessing-the-protoc-filedescriptorset). |
-| Google's `protobuf = 4.35.1-release`, `protobuf-codegen = 4.35.1-release`, and `protobuf-well-known-types = 4.35.1-release` | The exact six-input probe passed all tested unknowns including the group, unknown enum numerics, both optional forms, all oneofs, Status/Any/WKT imports, and Rust 1.96. It preserved interleaved/non-minimal unknown bytes exactly. Generated descriptor bytes contain all messages/services, but exist only through public `__unstable` symbols typed through runtime `__internal`; no stable generated-message reflection API was found. | Official Google development is active; 4.35.1-release shipped 2026-06-11 with BSD-3-Clause and runtime/codegen MSRV 1.79. Despite the release suffix, [official codegen documentation](https://docs.rs/crate/protobuf-codegen/4.35.1-release) still calls the API beta, subject to change, and incomplete. | Requires exactly protoc 35.1 ([official example](https://docs.rs/crate/protobuf-example/4.35.1-release)); `protoc-bin-vendored` 3.2.0 supplies 31.1 and `protobuf-src` supplies 27.1, while `protoc-prebuilt` downloads during the build. The official prebuilt/source archives are viable inputs only after an offline, checksummed, per-host provisioning design is approved. The runtime compiles bundled C upb via `cc`; Windows GNU cross-check passed, while Linux-to-Apple-arm64 correctly required a target C compiler. It emitted 36,608 generated lines versus 12,360 rust-protobuf and 820 Prost lines. | **Leading maintained alternative, still blocked:** wire gate passes, but beta API, unstable descriptor/reflection surface, and absent approved exact-protoc 35.1 offline/source strategy fail current gates. Re-evaluate promptly. Sources: [runtime manifest/build](https://docs.rs/crate/protobuf/4.35.1-release/source/Cargo.toml.orig), [Rust design decisions](https://protobuf.dev/reference/rust/rust-design-decisions/), and [codegen](https://docs.rs/crate/protobuf-codegen/4.35.1-release). |
+| Google's `protobuf = 4.35.1-release`, `protobuf-codegen = 4.35.1-release`, and `protobuf-well-known-types = 4.35.1-release` | The exact six-input probe passed all tested unknowns including groups, repeated unknown values, and nested ordinary/WKT/Status/Any cases; unknown enum numerics; both optional forms; all oneofs; Status/Any/WKT imports; and Rust 1.96. The expanded matrix passed all 195 fixtures. Generated descriptor bytes contain all messages/services, but exist only through public `__unstable` symbols typed through runtime `__internal`; a direct stable-reflection compile probe failed with `E0599`. | Official Google development is active; 4.35.1-release shipped 2026-06-11 with BSD-3-Clause and runtime/codegen MSRV 1.79. Despite the release suffix, [official codegen documentation](https://docs.rs/crate/protobuf-codegen/4.35.1-release) still calls the API beta, subject to change, and incomplete. The newer 4.36.0-rc.2 remains beta/experimental and adds no stable reflection surface; it was source-inspected but not matrix/target tested. | Requires exactly protoc 35.1 ([official example](https://docs.rs/crate/protobuf-example/4.35.1-release)); `protoc-bin-vendored` 3.2.0 supplies 31.1 and `protobuf-src` supplies 27.1. A two-archive offline source build passes on Linux and emits byte-identical gencode, but no reviewed wrapper or native macOS source-build matrix exists. The runtime compiles bundled C upb via `cc`; fresh checks passed Linux x86_64/aarch64 and supplemental Windows GNU, while Linux-to-Apple-arm64 correctly required an unavailable Apple target compiler/SDK. It emitted 36,608 generated lines versus 12,360 rust-protobuf and 820 Prost lines. | **Leading maintained alternative, still blocked:** wire, maintenance, and tested Linux target gates pass. The only hard blocker is the absent reviewed source-tool contract and native supported-host matrix; beta API and unstable reflection are recorded risks. Sources: [runtime manifest/build](https://docs.rs/crate/protobuf/4.35.1-release/source/Cargo.toml.orig), [Rust design decisions](https://protobuf.dev/reference/rust/rust-design-decisions/), and [codegen](https://docs.rs/crate/protobuf-codegen/4.35.1-release). |
 | `quick-protobuf = 0.8.1` + `pb-rs = 0.10.0` | Fast generated readers/writers, but no equivalent full generated reflection/descriptors. Generated readers call `read_unknown` only to advance over unrecognized values and generate no storage/write-back field, so ordinary unknowns are lost. | 33.8M runtime downloads / 73 reverse dependents; both releases last published 2022-11-22. | Small pure-Rust runtime, but WKT/Status/import and reflection policy would become local code. | **Rejected on behavior and maintenance gates.** Exact sources: [`pb-rs` generated read path](https://docs.rs/crate/pb-rs/0.10.0/source/src/types.rs) and [`read_unknown`](https://docs.rs/crate/quick-protobuf/0.8.1/source/src/reader.rs). |
 
 ### Generation-strategy comparison
@@ -222,7 +295,7 @@ are supporting evidence, not a quality guarantee.
 | `protobuf-codegen` with its pure-Rust parser | Avoids an executable and supports built-in WKT source parsing, but its own documentation calls it less tested and notes missing complex-option support. It gives no required behavior advantage. | Reject for the foundational contract; use Google's parser. Keep as an emergency developer diagnostic only, never a silent fallback. |
 | System `protoc` from `PATH` or `PROTOC` | Simple locally, but version and WKT sources vary by workstation/CI image and missing `protoc` breaks builds. | Reject reproducibility/availability gate. |
 | `protoc-bin-vendored = 3.2.0` | Exact v31.1 compiler and identical Google includes on every supported host, with no build-time network or C++ toolchain. It is compatible with rejected rust-protobuf 3.7.2/Prost generation but cannot satisfy Google v4's enforced 35.1 match. Its architecture crates omit a standalone copy of protobuf's BSD license beside the binary. | Usable only with a candidate that accepts v31.1; if ever authorized, pin exactly and ship the upstream v31.1 BSD notice explicitly. It does not unblock this decision. |
-| `protobuf-src = 2.1.1+27.1` or direct source build | The crate compiles v27.1 through CMake and therefore cannot satisfy Google v4's exact 35.1 check. A direct pinned v35.1 official source-archive build could, but no reviewed Cargo wrapper, host matrix, checksum/licensing layout, or build-time budget exists here. | Reject the crate. A direct v35.1 source build is an acceptance path to research, not an approved dependency. |
+| `protobuf-src = 2.1.1+27.1` or direct source build | The crate compiles v27.1 through CMake and therefore cannot satisfy Google v4's exact 35.1 check. A direct build from the pinned official protobuf 35.1 and Abseil 20250512.1 source archives now passes fully disconnected on Linux and generates byte-identical Rust, but there is still no reviewed wrapper, native macOS amd64/arm64 host matrix, or checksum/licensing installation layout. Windows coverage and clean-build cost are planning evidence rather than hard gates. | Reject the crate. The direct v35.1 source build is now a proven Linux acceptance path, not an approved dependency contract. |
 | Official protoc 35.1 prebuilt archives or `protoc-prebuilt` | Official per-host archives exist and can be checksummed, but the Google codegen docs assume `PATH`; `protoc-prebuilt` downloads during the build. Neither is presently an offline source-archive integration. | Blocked until a dependency steward defines checked-in/release-cached per-host artifacts, hashes, BSD notices, unsupported-host behavior, and zero network fallback. |
 | Pre-generated committed Rust with no reproducibility check | Easy downstream builds but permits stale or hand-edited generated contracts and makes compiler provenance unverifiable. | Reject. Generation must remain executable and deterministic from vendored schemas; a release may additionally check in a reviewed snapshot only if CI proves zero diff. |
 | Committed `FileDescriptorSet` as the only descriptor strategy | Makes descriptor bytes reproducible and lets Prost generate without rerunning `protoc`, but does not add reflection to Prost's typed messages and can drift from source unless regenerated together. | Useful only as a checked golden artifact; not a substitute for a future approved runtime's descriptors or source generation. |
@@ -420,13 +493,78 @@ scans of the 49-package rust-protobuf pure-parser diagnostic lock, 47-package
 Prost lock, and 16-package Google-v4 lock reported no known vulnerability in
 the local 1,211-advisory database.
 
+### Exhaustive Go-to-Rust-to-Go golden matrix
+
+A fresh descriptor-driven probe at exact base
+`bb1d841c3ad59874c5076469a16aeb0ac409c3ea` used the frozen generated Go
+descriptors and Go protobuf 1.36.9 to generate 195 binary fixtures for every
+one of the 75 non-map-entry messages reachable from the six direct input
+files. The fixtures comprise 75 recursively populated messages, 41 isolated
+default-valued presence cases, 75 populated messages with an unknown-field
+suffix, and four focused nested-unknown fixtures. Per-file fixture counts were
+caddy 3, cluster 24, common 23, docker 85, machine 58, and Status 2. Thus every
+declared scalar, bytes/string, enum, singular message, repeated field, map,
+proto3 optional, and each member of all three oneofs was exercised. All four
+declared enum fields used the unknown numeric value 777. Each top-level unknown
+suffix contained varint, fixed64, length-delimited, a complete start/end group
+with a nested value, and fixed32 fields, covering all six wire types. The four
+focused fixtures put that suffix plus two values of the same unknown varint
+field inside an ordinary generated message, `Timestamp`, `Duration`, and both
+levels of an embedded `google.rpc.Status.details`/`Any` path.
+
+Each exact Rust runtime parsed and serialized every fixture on Rust 1.96; Go
+then parsed both the original and Rust output through the same frozen message
+descriptor and compared typed semantics, presence, enum numerics, and raw
+unknown bytes:
+
+| Candidate | Parsed | Semantic matches | Raw unknown matches | Exact byte matches | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Google `protobuf` 4.35.1-release/upb | 195/195 | 195/195 | 195/195 | 193/195 | **Wire gate passes.** The two differences were the populated `InitClusterRequest` fixture with and without the unknown suffix; Go and Rust remained semantically and recursively unknown-byte identical, consistent with protobuf's noncanonical serialization rule. |
+| Prost 0.14.4 | 195/195 | 116/195 | 116/195 | 115/195 | **Fails.** All 75 top-level and four nested unknown fixtures lost unknown fields; every fixture without injected unknowns passed semantically. |
+| rust-protobuf 3.7.2 pure-parser diagnostic | 195/195 | 116/195 | 116/195 | 92/195 | **Fails.** All 75 top-level fixtures lost the group while the four storable unknown kinds survived semantically; all four nested fixtures likewise lost their group. Every fixture without injected unknowns passed semantically. The separate focused evidence crate covers the exact vendored-protoc stack. |
+
+The expanded manifest SHA-256 was
+`2fcba162c0657e19951d57fb3441ac1c5e1651229a912f87267cd99eca62a8bd`.
+Two independent Google runs produced byte-identical output for all 195 files.
+That is repeatability evidence, not a deterministic-wire contract: the public
+bare `serialize()` call exposes no deterministic option or guarantee, and
+protobuf serialization is noncanonical. Deterministic **generated source** is
+proven and remains required; canonical or deterministic message encoding is
+neither proven nor required by the frozen callers.
+
+The source scan also reconfirmed the observable boundary: binary marshal,
+unknown retention, presence/oneof/enum semantics, descriptors, and raw proxy
+concatenation belong to this decision. The single known-field `proto.Equal`
+caller has a passing Google-v4 `message_eq` probe. The handwritten IP
+conversion and network-validation methods are package logic, gRPC is a
+separate dependency decision, and the six direct `protojson` call sites
+require their own explicit parity coverage rather than an undocumented JSON
+dependency here.
+
+The frozen Go oracle command
+`go test ./internal/machine/api/pb ./internal/machine/api/proxy` passed: the
+generated/handwritten `pb` package has no direct tests, and the proxy package's
+test suite passed. This confirms the current raw-concatenation caller baseline;
+the matrix independently checks that typed candidate round trips do not lose
+the fields the raw proxy may forward.
+
+An executable stable-reflection probe against Google 4.35.1 attempted
+`UpdateMachineRequest::descriptor()` and failed with Rust `E0599`: the
+generated type exposes no such associated function. The only generated file
+descriptor objects remain public names under the generated `__unstable`
+module, with the runtime type under `protobuf::__internal`. This confirms the
+recorded tooling/API limitation, not a hard gate, because no handwritten frozen
+caller observes reflection. The latest 4.36.0-rc.2 source inspection reached
+the same result; that prerelease was not executable-matrix or target tested.
+
 The exact six direct input descriptors (five machine schemas plus Status),
 excluding imported WKT file bodies, were also emitted independently by the
 frozen Go compiler version 27.3, vendored v31.1, and Google-v4-required v35.1.
 All three `FileDescriptorSet` files were byte-identical: 11,671 bytes with
 SHA-256 `6c3cbf942bd21b74e30b231480d1b6c8e79b026417e3b86cb00be4d76ff88bdf`.
 Thus compiler grammar/descriptor compatibility is not a blocker for these
-inputs; exact v35.1 provisioning and Google-v4 gencode coupling still are.
+inputs; reviewed cross-host v35.1 source-tool packaging and Google-v4 gencode
+coupling still are.
 
 Commands:
 
@@ -455,54 +593,124 @@ cargo tree --locked --manifest-path /tmp/ployz-protobuf-evidence/Cargo.toml \
   -e normal,build
 cargo audit --no-fetch --deny warnings \
   --file /tmp/ployz-protobuf-evidence/Cargo.lock
+(cd upstream/uncloud && GOTOOLCHAIN=local /opt/go1.26.1/bin/go test \
+  ./internal/machine/api/pb ./internal/machine/api/proxy)
+
+(cd /tmp/ployz-protobuf-matrix && \
+  /opt/go1.26.1/bin/go run . generate fixtures)
+cargo +1.96.0 run --locked --offline \
+  --manifest-path /tmp/ployz-google-v4-matrix/Cargo.toml \
+  --bin ployz-protobuf-v4-probe -- \
+  /tmp/ployz-protobuf-matrix/fixtures /tmp/ployz-protobuf-matrix/out-google
+cargo +1.96.0 run --locked --offline \
+  --manifest-path /tmp/ployz-google-v4-matrix/Cargo.toml \
+  --bin ployz-protobuf-v4-probe -- \
+  /tmp/ployz-protobuf-matrix/fixtures /tmp/ployz-protobuf-matrix/out-google-2
+diff -qr /tmp/ployz-protobuf-matrix/out-google \
+  /tmp/ployz-protobuf-matrix/out-google-2
+cargo +1.96.0 run --locked --offline \
+  --manifest-path /tmp/ployz-prost-matrix/Cargo.toml -- \
+  /tmp/ployz-protobuf-matrix/fixtures /tmp/ployz-protobuf-matrix/out-prost
+cargo +1.96.0 run --locked --offline \
+  --manifest-path /tmp/ployz-rust-protobuf-matrix/Cargo.toml -- \
+  /tmp/ployz-protobuf-matrix/fixtures /tmp/ployz-protobuf-matrix/out-rust-protobuf
+(cd /tmp/ployz-protobuf-matrix && \
+  /opt/go1.26.1/bin/go run . verify fixtures out-google)
+(cd /tmp/ployz-protobuf-matrix && \
+  /opt/go1.26.1/bin/go run . verify fixtures out-prost) # 79 affected fixtures / 158 mismatched assertions
+(cd /tmp/ployz-protobuf-matrix && \
+  /opt/go1.26.1/bin/go run . verify fixtures out-rust-protobuf) # 79 affected fixtures / 158 mismatched assertions
+cargo +1.96.0 check --locked --offline \
+  --manifest-path /tmp/ployz-google-v4-matrix/Cargo.toml \
+  --bin reflection_probe # expected E0599: no stable descriptor method
+cargo +1.96.0 run --locked --offline \
+  --manifest-path /tmp/ployz-google-v4-matrix/Cargo.toml \
+  --bin equality_probe
+CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+  cargo +1.96.0 check --locked --offline --lib \
+  --manifest-path /tmp/ployz-google-v4-matrix/Cargo.toml \
+  --target aarch64-unknown-linux-gnu
+CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc \
+  CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc \
+  cargo +1.96.0 check --locked --offline --lib \
+  --manifest-path /tmp/ployz-google-v4-matrix/Cargo.toml \
+  --target x86_64-pc-windows-gnu
+cargo +1.96.0 check --locked --offline --lib \
+  --manifest-path /tmp/ployz-google-v4-matrix/Cargo.toml \
+  --target aarch64-apple-darwin # expected failure without Apple C compiler/SDK
+```
+
+The fresh exact-source compiler probe additionally ran:
+
+```sh
+sha256sum \
+  /tmp/protobuf-35.1-sourcecheck/protobuf-35.1.tar.gz \
+  /tmp/protobuf-35.1-sourcecheck/abseil-cpp-20250512.1.tar.gz
+cmake -S /tmp/protobuf-35.1-sourcecheck/protobuf-35.1 \
+  -B /tmp/protobuf-35.1-sourcecheck/build-offline \
+  -DCMAKE_BUILD_TYPE=Release \
+  -Dprotobuf_BUILD_TESTS=OFF \
+  -Dprotobuf_BUILD_CONFORMANCE=OFF \
+  -Dprotobuf_BUILD_LIBPROTOC=ON \
+  -Dprotobuf_BUILD_PROTOC_BINARIES=ON \
+  -Dprotobuf_BUILD_LIBUPB=ON \
+  -Dprotobuf_WITH_ZLIB=OFF \
+  -Dprotobuf_FORCE_FETCH_DEPENDENCIES=ON \
+  -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
+  -DFETCHCONTENT_SOURCE_DIR_ABSL=/tmp/protobuf-35.1-sourcecheck/abseil-cpp-20250512.1
+cmake --build /tmp/protobuf-35.1-sourcecheck/build-offline \
+  --target protoc --parallel 8
+/tmp/protobuf-35.1-sourcecheck/build-offline/protoc --version
+cargo +1.96.0 test --locked --offline \
+  --manifest-path /tmp/ployz-protobuf-v4-source-protoc/Cargo.toml
+diff -qr \
+  /tmp/ployz-protobuf-v4-probe-019ff0af/target/debug/build/*/out/protobuf_generated \
+  /tmp/ployz-protobuf-v4-source-protoc/target/debug/build/*/out/protobuf_generated
 ```
 
 Because the decision is blocked, there is no package acceptance command yet.
 Any successor decision must compare the vendored schemas to the oracle, run
 Rust/Go bidirectional goldens for every message family and oneof, exercise both
 optional forms versus implicit defaults, preserve unknown enum values and all
-unknown wire kinds including groups, verify the complete stable descriptor
+unknown wire kinds including groups, verify the complete descriptor golden
 graph, prove deterministic generation, and run codegen/target checks on native
 Linux and macOS amd64/arm64 hosts.
 
 ## Review
 
-Fresh internal cross-check reviewer: `/root/protobuf_crosscheck`. The reviewer
-worked read-only at exact base
-`e86b2edc8d13c72e4ceaecc0b22a9ad778a0724f`, made no repository edits, and
-returned **NO-GO**. The independent review reproduced the decisive unknown-group
-loss under rust-protobuf 3.7.2 and the contrasting byte-preserving Go behavior;
-confirmed the approaching-EOL lifecycle failure; rejected Prost for general
-unknown-field loss and missing runtime descriptors; and treated Google
-4.35.1-release as a serious maintained alternative that still fails the stable
-descriptor, exact offline-protoc, and native-toolchain gates. It also confirmed
-the v31.1 compiler license/notice gap, exact descriptor compatibility, clean
-point-in-time audits, absence of an async runtime/transport generator, and the
-need to preserve proxy concatenation as raw byte manipulation.
+Fresh read-only adversarial reviewer: `/root/protobuf_adversarial_review`. The
+reviewer inspected this decision and independently regenerated the matrix at
+exact base `bb1d841c3ad59874c5076469a16aeb0ac409c3ea`, made no repository edits,
+and returned **NO-GO for approval; keep `blocked`**. It reproduced the original
+191-fixture counts, all three candidate result tables, source-built `libprotoc
+35.1`, seven byte-identical generated files/36,608 lines, five of five focused
+Google tests, the equality pass, stable-reflection `E0599`, target results, Go
+pb/proxy baseline, and all three clean point-in-time audits. It also identified
+the missing nested/repeated-unknown coverage; the matrix was then expanded to
+195 fixtures and the new four cases passed Google while failing both rejected
+candidates. The reviewer further corrected the governance boundary: neither
+stable reflection, Windows, beta labeling, nor build cost is a caller-observable
+hard gate at this base.
 
-No review finding has been waived. Approval requires **all** of the following:
+After those corrections, the same reviewer independently regenerated all 195
+fixtures and returned **GO-for-commit with the dependency status remaining
+`blocked`**, with no actionable findings. All four new nested/repeated-unknown
+fixtures passed Google byte-for-byte and failed both rejected candidates; the
+reviewer also reconfirmed scope and frozen-upstream cleanliness.
 
-1. A candidate that retains every complete unknown field across all six wire
-   types, including groups, plus unknown enum values in bidirectional Go/Rust
-   goldens. Noncanonical spelling/order may normalize; field loss may not.
-2. An active-maintenance posture suitable for a foundational wire contract, or
-   an explicit human lifecycle exception with named ownership, security
-   response, migration, and periodic Google-v4 reevaluation plans.
-3. Stable public reflection over file/message/field/enum/oneof/service
-   descriptors; `__unstable` raw bytes and `__internal` types do not pass.
-4. Exact offline compiler provisioning for every supported build host, with
-   source or binary provenance, hashes, the upstream BSD license and applicable
-   notices, explicit unsupported-host behavior, and no `PATH` or network
-   fallback. Google v4 specifically requires protoc 35.1.
-5. Native Linux and macOS amd64/arm64 generation plus target checks. A Google-v4
-   choice must also prove the required C/upb compiler/linker setup per target.
-6. Byte-identical frozen schemas and Status input, exact WKT import resolution,
-   deterministic generation, Rust 1.96, complete descriptor/service goldens,
-   optional/oneof/WKT/Status/Any parity, and a clean integrated security audit.
-7. Raw proxy payload concatenation with no typed decode/re-encode, and no gRPC,
-   async runtime, or transport generator in this capability.
+No review finding has been waived. Approval now has one remaining compound
+condition: land a reviewed, exact, fully offline source wrapper for protoc 35.1
+and Abseil 20250512.1 with pinned hashes, both license texts, no `PATH` or network
+fallback, and explicit unsupported-host behavior; then pass native generation
+and Google-upb Rust checks on Linux and macOS amd64/arm64. The already-passing
+wire matrix, frozen-schema/import checks, deterministic generated-source check,
+Rust 1.96 check, descriptor/service goldens, license/security classes, raw proxy
+design, and transport exclusion remain mandatory regression checks.
 
-The controller must not add this decision to `migration/DEPENDENCIES.tsv` or
-release a waiting package from the dependency gate. Affected package packet:
-future packet for `upstream/uncloud/internal/machine/api/pb` (none existed at
-exact base `e86b2edc8d13c72e4ceaecc0b22a9ad778a0724f`).
+The controller must not mark this decision approved in
+`migration/DEPENDENCIES.tsv` or release a waiting package from the dependency
+gate. At exact base `bb1d841c3ad59874c5076469a16aeb0ac409c3ea`, the affected
+`internal/machine/api/pb` package row remains `dependency-blocked` on this
+decision and the separate async-gRPC decision. The controller workflow does not
+authorize a per-package Markdown packet.
