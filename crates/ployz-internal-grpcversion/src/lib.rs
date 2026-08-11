@@ -85,18 +85,22 @@ impl ProtocolVersion {
             wire.push_str(build);
         }
 
-        let normalized_prerelease = prerelease
-            .split('.')
-            .map(|part| {
-                if part.bytes().all(|byte| byte.is_ascii_digit()) {
-                    let trimmed = part.trim_start_matches('0');
-                    if trimmed.is_empty() { "0" } else { trimmed }
-                } else {
-                    part
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(".");
+        let normalized_prerelease = if prerelease.is_empty() {
+            String::new()
+        } else {
+            prerelease
+                .split('.')
+                .map(|part| {
+                    if part.bytes().all(|byte| byte.is_ascii_digit()) {
+                        let trimmed = part.trim_start_matches('0');
+                        if trimmed.is_empty() { "0" } else { trimmed }
+                    } else {
+                        part
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(".")
+        };
 
         let mut semantic_text = format!("{}.{}.{}", numbers[0], numbers[1], numbers[2]);
         if !normalized_prerelease.is_empty() {
@@ -578,6 +582,21 @@ mod tests {
                 "{input}"
             );
         }
+        assert!(
+            ProtocolVersion::parse("1.2.3")
+                .unwrap()
+                .semantic
+                .pre
+                .is_empty()
+        );
+        assert_eq!(
+            ProtocolVersion::parse("1.2.3-00")
+                .unwrap()
+                .semantic
+                .pre
+                .as_str(),
+            "0"
+        );
 
         for input in [
             "",
