@@ -12,7 +12,7 @@ http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;
 protobuf-codegen-runtime	blocked	migration/dependencies/protobuf-codegen-runtime.md	-	-	-	yes	internal/machine/api/pb	-
 async-grpc-client-server	blocked	migration/dependencies/async-grpc-client-server.md	tonic;tonic-build;tokio;tokio-stream;tower;http;bytes;hyper-util	0.14.6;0.14.6;1.53.1;0.1.19;0.5.3;1.5.0;1.12.1;0.1.20	MIT	yes	internal/machine/api/pb,internal/grpcversion,internal/machine,pkg/client/connector,internal/machine/api/proxy	-
 grpc-metadata-interceptor	blocked	migration/dependencies/grpc-metadata-interceptor.md	tonic;tower	0.14.6;0.5.3	MIT	yes	internal/grpcversion	-
-semantic-version-parsing	adversarial-review	migration/dependencies/semantic-version-parsing.md	semver	1.0.28	MIT OR Apache-2.0	yes	internal/grpcversion	/root/semver_research/fresh_adversarial_review
+semantic-version-parsing	research	migration/dependencies/semantic-version-parsing.md	semver	1.0.28	MIT OR Apache-2.0	yes	internal/grpcversion	/root/semver_research
 unix-account-lookup-chown	blocked	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	-
 docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	-
 http2-tls-client	blocked	migration/dependencies/http2-tls-client.md	reqwest	0.13.4	MIT OR Apache-2.0	yes	internal/corrosion	-
