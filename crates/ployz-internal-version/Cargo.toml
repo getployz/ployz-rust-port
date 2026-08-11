@@ -1,0 +1,16 @@
+[package]
+name = "ployz-internal-version"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+build = "build.rs"
+
+[dependencies]
+
+[build-dependencies]
+vergen-gitcl = { version = "=10.0.2", default-features = false }
+
+# Keep this migration crate independently testable until the integrator adds it
+# to the repository workspace.
+[workspace]
