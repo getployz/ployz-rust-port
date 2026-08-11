@@ -885,6 +885,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-internal-fs"
+version = "0.0.0"
+dependencies = [
+ "libc",
+ "rustix",
+]
+
+[[package]]
 name = "ployz-internal-gitutil"
 version = "0.0.0"
 
