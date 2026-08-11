@@ -8,7 +8,7 @@ synchronous-outbound-http-client	blocked	migration/dependencies/synchronous-outb
 interactive-terminal-runtime	blocked	migration/dependencies/interactive-terminal-runtime.md	-	-	-	yes	internal/cli/tui	-
 terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	console;comfy-table	0.16.4;8.0.0	MIT	yes	internal/cli/tui	-
 terminal-output-profile	blocked	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	-
-http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	/root/http_record_fix
+http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
 protobuf-codegen-runtime	blocked	migration/dependencies/protobuf-codegen-runtime.md	-	-	-	yes	internal/machine/api/pb	/root/protobuf_record_fix
 async-grpc-client-server	approved	migration/dependencies/async-grpc-client-server.md	tonic;tonic-build;tokio;tokio-stream;tower;http;bytes;hyper-util	0.14.6;0.14.6;1.53.1;0.1.19;0.5.3;1.5.0;1.12.1;0.1.20	MIT	no	internal/machine/api/pb,internal/grpcversion,internal/machine,pkg/client/connector,internal/machine/api/proxy	-
 grpc-metadata-interceptor	blocked	migration/dependencies/grpc-metadata-interceptor.md	tonic;tower	0.14.6;0.5.3	MIT	yes	internal/grpcversion	/root/grpc_metadata_unblock
