@@ -11,7 +11,7 @@ terminal-output-profile	adversarial-review	migration/dependencies/terminal-outpu
 http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
 protobuf-codegen-runtime	blocked	migration/dependencies/protobuf-codegen-runtime.md	-	-	-	yes	internal/machine/api/pb	-
 async-grpc-client-server	research	migration/dependencies/async-grpc-client-server.md	-	-	-	yes	internal/machine/api/pb,internal/grpcversion	/root/async_grpc_research
-grpc-metadata-interceptor	queued	migration/dependencies/grpc-metadata-interceptor.md	-	-	-	yes	internal/grpcversion	-
+grpc-metadata-interceptor	research	migration/dependencies/grpc-metadata-interceptor.md	-	-	-	yes	internal/grpcversion	/root/grpc_metadata_research
 unix-account-lookup-chown	blocked	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	-
 docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	-
 http2-tls-client	blocked	migration/dependencies/http2-tls-client.md	reqwest	0.13.4	MIT OR Apache-2.0	yes	internal/corrosion	-
