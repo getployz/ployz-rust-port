@@ -7,7 +7,3 @@ publish = false
 
 [dependencies]
 prometheus = { version = "=0.14.0", default-features = false, features = ["protobuf"] }
-
-# Keep this migration crate independently testable until the integrator adds it
-# to the repository workspace.
-[workspace]
