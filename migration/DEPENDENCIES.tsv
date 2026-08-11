@@ -1,2 +1,16 @@
-capability	status	decision_record	selected_dependency	version	license	reviewer_required
-
+capability	status	decision_record	selected_dependency	version	license	reviewer_required	affected_packages	active_task
+build-time-vcs-metadata	approved	migration/dependencies/build-time-vcs-metadata.md	vergen-gitcl	10.0.2	MIT OR Apache-2.0	no	internal/version	-
+docker-oci-reference-parsing	approved	migration/dependencies/docker-oci-reference-parsing.md	oci-spec[distribution]	0.10.0	Apache-2.0	no	internal/cli/tui	-
+prometheus-metrics	approved	migration/dependencies/prometheus-metrics.md	prometheus[protobuf]	0.14.0	Apache-2.0	no	internal/metrics,internal/machine/metrics	-
+structured-logging-facade	approved	migration/dependencies/structured-logging-facade.md	tracing;tracing-subscriber	0.1.44;0.3.23	MIT	no	internal/log	-
+synchronous-outbound-http-client	adversarial-review	migration/dependencies/synchronous-outbound-http-client.md	reqwest[blocking,gzip,http2,rustls]	0.13.4	MIT OR Apache-2.0	yes	internal/dns	019ff0cd-eb07-74e1-9f4c-ecbc2c6c24ea
+interactive-terminal-runtime	adversarial-review	migration/dependencies/interactive-terminal-runtime.md	crossterm;terminal_size	0.29.0;0.4.4	MIT;MIT OR Apache-2.0	yes	internal/cli/tui	019ff0cf-0b43-7133-8a36-1f37d8434f27
+terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	console;comfy-table	0.16.4;8.0.0	MIT	yes	internal/cli/tui	-
+terminal-output-profile	queued	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	-
+http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
+protobuf-codegen-runtime	adversarial-review	migration/dependencies/protobuf-codegen-runtime.md	protobuf;protobuf-codegen;protoc-bin-vendored	3.7.2;3.7.2;3.2.0	MIT;BSD-3-Clause;Apache-2.0	yes	internal/machine/api/pb	019ff0d7-eb51-7d22-90b4-edd06385edec
+async-grpc-client-server	queued	migration/dependencies/async-grpc-client-server.md	-	-	-	yes	internal/machine/api/pb,internal/grpcversion	-
+unix-account-lookup-chown	rejected-research-queued	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	-
+docker-engine-client	queued	migration/dependencies/docker-engine-client.md	-	-	-	yes	internal/docker	-
+http2-tls-client	queued	migration/dependencies/http2-tls-client.md	-	-	-	yes	internal/corrosion	-
+userspace-wireguard-tunnel	queued	migration/dependencies/userspace-wireguard-tunnel.md	-	-	-	yes	internal/machine/network/tunnel	-
