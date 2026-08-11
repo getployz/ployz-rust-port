@@ -1,0 +1,12 @@
+[package]
+name = "ployz-internal-grpcversion"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+ployz-internal-version = { path = "../ployz-internal-version" }
+semver = { version = "=1.0.28", default-features = false, features = ["std"] }
+tonic = { version = "=0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
+tower = { version = "=0.5.3", default-features = false, features = ["util"] }
