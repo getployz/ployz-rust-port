@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` — the repaired bounded split passes this researcher's gates, but this critical OS-identity/privileged-mutation design requires a fresh adversarial rereview; native macOS runtime and final Rust Docker linkage are also unverified |
+| Status | `blocked` — fresh adversarial review rejected candidate `10cb71def83042c6db782896758f627a1dc87875`; D01 native macOS/privileged runtime evidence, D02 exact release-target/Docker artifact evidence, and D03 controller/human Linux-scope authority remain open |
 | Capability | Resolve a user name to UID and primary GID, resolve a group name to GID, preserve the released target/build-specific account source and errors, and change pathname ownership while independently leaving either ID unchanged |
 | Selected dependency and exact version | Linux lookup: none; macOS lookup only: `libc = "=0.2.189"`; Linux/macOS ownership: Rust 1.96 `std::os::unix::fs::chown` with no dependency |
 | License | `MIT OR Apache-2.0` for the macOS-only `libc`; project-owned safe Rust and `std` elsewhere |
@@ -24,6 +24,11 @@ Select a bounded Linux/macOS split, not a Unix-wide NSS wrapper:
   lookup order, retry `Interrupted`, and add operation context.
 - Do not use `cfg(unix)`. No behavior is approved here for BSD, AIX, Solaris,
   Android, Redox, WASI, or Windows.
+
+This remains the researcher's provisional candidate, not an approved selection.
+The completed adversarial review found that source analysis and cross-target
+compilation do not close the runtime/platform and scope-authority gates recorded
+as D01-D03 below.
 
 This asymmetry is required behavior, not an optimization. Go's account backend
 is selected at build time. Ordinary cgo-enabled Linux builds use libc/NSS, but
@@ -223,9 +228,9 @@ failure.
 
 | Gate | Evidence | Result |
 | --- | --- | --- |
-| Required behavior | Frozen release/build configuration establishes files-only Linux and native macOS. Official Go source establishes parser, native retry, NUL, ID, and error rules. The bounded split and `std::chown` retain them. | `pass` for the proposed design |
-| License and security | Linux lookup is safe project code. `libc` is `MIT OR Apache-2.0`; unsafe is confined to macOS `_r` calls/raw scalar reads with zeroed storage and bounded allocation. No shell, cache, Linux NSS module, or account-editing API is added. | `pass` for first research; critical rereview pending |
-| Platforms and targets | Linux amd64/arm64 and macOS amd64/arm64 only. Parser is GNU/musl independent; macOS target checks passed. No `cfg(unix)` claim. | `pass` for code/link design; native macOS and final Docker Rust artifact remain open |
+| Required behavior | Frozen release/build configuration establishes files-only shipped Linux and native macOS, but normal cgo-enabled Linux and `mise` workflows observe native NSS. The bounded split is technically coherent only after the supported-artifact authority chooses how that difference is scoped. | `blocked` by D03 |
+| License and security | Linux lookup is safe project code. `libc` is `MIT OR Apache-2.0`; unsafe is confined to macOS `_r` calls/raw scalar reads with zeroed storage and bounded allocation. No shell, cache, Linux NSS module, or account-editing API is added. Privileged ownership side effects have not been exercised on every shipped architecture. | `blocked` by D01 despite passing source/license analysis |
+| Platforms and targets | Linux amd64/arm64 and macOS amd64/arm64 are proposed. Cross-checks prove macOS declarations/type-checking only. Exact Rust release triples/linkage and running amd64/arm64 Docker artifacts are not defined or verified. No `cfg(unix)` claim. | `blocked` by D01 and D02 |
 | Maintenance and Rust version | `libc` 0.2.189 was current on the research date, released 2026-07-21, declares Rust 1.65, and compiled under Rust 1.96 for both Apple architectures. `std::chown` has been stable since Rust 1.73. | `pass` |
 | Architectural constraints | Synchronous, no runtime/process/service, fresh per-call state, minimal graph, natural Path/ID/error API. | `pass` |
 
@@ -320,7 +325,8 @@ cargo audit --no-fetch --deny warnings
 RustSec scanned the two-package all-target lock at advisory database commit
 `d0861df1eab469d3c58d6b836ce48b5766e5f217` dated 2026-08-11 and reported no
 vulnerability. Cross-compilation proves declarations/type-checking, not native
-macOS runtime or Open Directory behavior.
+macOS runtime or Open Directory behavior. None of these focused probes built or
+ran the final Rust release artifacts, so they do not satisfy D01 or D02.
 
 ## Required package acceptance
 
@@ -353,31 +359,76 @@ The future package must add tests for:
    inspection proving Linux uses the files backend and Docker packaging has no
    accidental glibc/NSS requirement.
 
-## Known risks, authority, and review
+## Completed adversarial review and blocking gates
 
-This record must not be marked approved or unblock `internal/fs` yet. A fresh
-adversarial dependency reviewer must independently verify:
+Fresh adversarial review of candidate commit
+`10cb71def83042c6db782896758f627a1dc87875` returned **REJECTED**. The reviewer
+did not invalidate the source-derived parser/native/chown design or the focused
+probes above. It rejected approval because those probes cannot establish the
+runtime artifact contract and because the normal cgo-enabled Linux scope has no
+controller/human authority.
 
-1. all shipped Linux paths are files-only, ordinary cgo Linux is intentionally
-   out of the released Rust artifact contract, and Docker can still ship the
-   chosen Rust linkage;
-2. exact parser fidelity for Unicode trimming, malformed duplicates, signed
-   ranges, streaming/late I/O errors, and the unbounded-prefix denial-of-service
-   limitation;
-3. the parity/security authority for Linux modulo narrowing/all-ones collision
-   and macOS embedded-NUL prefix truncation;
-4. native macOS behavior for local and Open Directory accounts, returned
-   errors, `ERANGE`, concurrency, and both shipped architectures;
-5. the unsafe proof: fresh zeroed storage/result state on every attempt,
-   returned integer rather than ambient errno, result-pointer handling,
-   raw-scalar reads only, bounded growth, and no whole-struct `assume_init`;
-6. `std::chown` retry, path bytes/NUL, symlink, privilege, mode/capability, and
-   all-ones behavior on Linux and macOS; and
-7. current exact `libc` release, license, Rust 1.96, target-build, and RustSec
-   evidence.
+The record remains blocked on exactly these gates:
 
-Reviewer result: `pending — fresh adversarial rereview required after the
-critical rejection and architecture change`.
+### D01 — native macOS and privileged ownership runtime evidence
+
+Supply native, executable evidence on both shipped macOS architectures
+(`x86_64-apple-darwin` and `aarch64-apple-darwin`) for local and non-files Open
+Directory user/group lookup, typed not-found, returned errors, forced `ERANGE`,
+concurrent calls, embedded-NUL prefix behavior, and the zeroed/raw-field unsafe
+boundary. Cross-compilation is insufficient.
+
+Also supply disposable privileged chown evidence on every shipped Linux and
+macOS architecture. It must exercise real UID/GID changes, user-only,
+group-only, both unchanged, all-ones collision, symlink following and broken
+links, non-UTF-8/NUL paths, permission failures, `Interrupted` handling,
+set-ID-bit/file-capability effects, and ctime. Record the host/runner, target,
+commands, and observed metadata/errors; do not infer one architecture's result
+for another.
+
+### D02 — exact Rust release targets, linkage, and Docker artifacts
+
+The controller/integrator must define the exact Rust target triples and linkage
+for Linux `uc`, installed `uncloudd`, Docker `uncloudd`, and both macOS
+architectures. “Linux”, “GNU/musl independent”, and a target-only Cargo graph
+are not release artifact definitions.
+
+Then build and inspect the actual Rust release outputs. For Docker, build both
+amd64 and arm64 images from the intended release pipeline, inspect the embedded
+binary's ELF interpreter/dynamic dependencies and architecture, start each
+image on its matching architecture, and execute lookup plus ownership paths in
+the Alpine runtime. Evidence must show the daemon starts, uses only the
+container's `/etc/passwd` and `/etc/group`, does not acquire host/glibc NSS
+behavior, and performs required ownership changes. Any emulation used must be
+declared; emulation alone cannot establish architecture-specific privileged
+filesystem behavior.
+
+### D03 — authority for normal cgo-enabled Linux and `mise` scope
+
+The frozen repository's normal same-host cgo-enabled Linux behavior and
+`mise.toml` development workflows use native libc/NSS, unlike the proposed
+always-files Rust Linux backend. Source inspection cannot decide whether those
+observable development builds are in the port contract.
+
+Obtain an explicit controller/human decision choosing one of:
+
+1. released artifacts are authoritative and normal cgo-enabled Linux/`mise`
+   builds are expressly excluded, so every supported Rust Linux artifact uses
+   the files backend; or
+2. those builds remain supported, in which case define an explicit native-NSS
+   backend/profile, its Cargo feature and release-profile matrix, its `libc`
+   target configuration, differential tests, and which artifacts select it.
+
+Do not infer option 1 from GoReleaser or silently enable option 2 based on GNU
+linkage. Option 2 materially expands the dependency/platform design and needs
+fresh adversarial review.
+
+After D01-D03 are recorded, a fresh adversarial reviewer must recheck their
+closure plus parser fidelity, NUL/all-ones parity authority, the unsafe proof,
+current `libc` license/release/RustSec evidence, and the exact artifact matrix.
+
+Reviewer result: `rejected — candidate 10cb71def83042c6db782896758f627a1dc87875
+cannot be approved until D01-D03 are closed and freshly rereviewed`.
 
 Affected package: future `crates/ployz-internal-fs` / Go package
 `upstream/uncloud/internal/fs`. The separate machine-level group lookup may
