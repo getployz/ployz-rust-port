@@ -442,5 +442,12 @@ and the record overstated reconstruction of unpersisted source-build,
 cross-version descriptor, notice/security-hash, and audit evidence. This
 revision records the delegation's exact gate, adds executable notice/security
 hash checks, labels the scan as current, and explicitly demotes every
-unpersisted comparison to non-approval historical evidence. Fresh re-review of
-this corrected record is required; no finding is waived.
+unpersisted comparison to non-approval historical evidence. No finding was
+waived.
+
+Fresh read-only re-reviewer `/root/protobuf_record_fix/protobuf_final_review`
+then inspected exact commit
+`a7019ce3f99316b84c57d92e4d1315b71af8e030`, reran the complete documented
+verification, confirmed the corrected evidence boundaries and preserved matrix,
+and returned **`ACCEPT / CLEAN` with zero actionable findings**. The only change
+after that reviewed commit is this durable review-result paragraph.
