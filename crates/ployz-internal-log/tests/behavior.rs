@@ -92,6 +92,32 @@ fn inherited_attributes_and_nested_empty_groups_keep_order() {
 }
 
 #[test]
+fn empty_group_names_are_no_ops_at_root_and_nested_depths() {
+    let output = Buffer::default();
+    let subscriber =
+        tracing_subscriber::registry().with(TextLayer::new(output.clone(), LevelFilter::DEBUG));
+    tracing::subscriber::with_default(subscriber, || {
+        let empty_root = tracing::info_span!("empty-root", ployz.group = "", root = "value");
+        let _empty_root = empty_root.enter();
+        tracing::info!(event = "root", "root empty");
+
+        let parent = tracing::info_span!("parent", ployz.group = "parent", parent = "value");
+        let _parent = parent.enter();
+        let empty_nested = tracing::info_span!("empty-nested", ployz.group = "", nested = "value");
+        let _empty_nested = empty_nested.enter();
+        tracing::info!(event = "nested", "nested empty");
+    });
+    assert_eq!(
+        output.text(),
+        concat!(
+            "INFO  root empty root=value event=root\n",
+            "INFO  nested empty root=value parent.parent=value parent.nested=value ",
+            "parent.event=nested\n"
+        )
+    );
+}
+
+#[test]
 fn direct_handler_filters_and_returns_first_and_second_write_errors() {
     let filtered = TextHandler::new(FailingWriter::new(1), LevelFilter::INFO);
     filtered
@@ -111,6 +137,32 @@ fn direct_handler_filters_and_returns_first_and_second_write_errors() {
         )
         .expect_err("second write fails");
     assert_eq!(second.to_string(), "write failure 2");
+
+    for fail_on in [1, 2] {
+        let interrupted = TextHandler::new(InterruptedOnceWriter::new(fail_on), LevelFilter::DEBUG)
+            .handle(&tracing::Level::INFO, "message", &[])
+            .expect_err("Interrupted is returned without retrying the write");
+        assert_eq!(interrupted.kind(), io::ErrorKind::Interrupted);
+        assert_eq!(
+            interrupted.to_string(),
+            format!("interrupted write {fail_on}")
+        );
+    }
+
+    let output = Buffer::default();
+    TextHandler::with_default_level(output.clone())
+        .handle(
+            &tracing::Level::INFO,
+            "reserved",
+            &[
+                Attribute::string("time", "removed"),
+                Attribute::string("level", "removed"),
+                Attribute::string("msg", "removed"),
+                Attribute::string("request.time", "kept"),
+            ],
+        )
+        .expect("write direct record");
+    assert_eq!(output.text(), "INFO  reserved request.time=kept\n");
 }
 
 struct FailingWriter {
@@ -129,6 +181,35 @@ impl Write for FailingWriter {
         self.writes += 1;
         if self.writes == self.fail_on {
             Err(io::Error::other(format!("write failure {}", self.writes)))
+        } else {
+            Ok(bytes.len())
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+struct InterruptedOnceWriter {
+    fail_on: usize,
+    writes: usize,
+}
+
+impl InterruptedOnceWriter {
+    fn new(fail_on: usize) -> Self {
+        Self { fail_on, writes: 0 }
+    }
+}
+
+impl Write for InterruptedOnceWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.writes += 1;
+        if self.writes == self.fail_on {
+            Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                format!("interrupted write {}", self.writes),
+            ))
         } else {
             Ok(bytes.len())
         }

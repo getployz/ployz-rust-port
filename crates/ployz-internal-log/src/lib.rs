@@ -140,8 +140,8 @@ impl<W: Write> TextHandler<W> {
             .writer
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        writer.write_all(prefix.as_bytes())?;
-        writer.write_all(suffix.as_bytes())
+        writer.write(prefix.as_bytes()).map(|_| ())?;
+        writer.write(suffix.as_bytes()).map(|_| ())
     }
 }
 
@@ -203,33 +203,33 @@ impl FieldVisitor {
     fn record_string(&mut self, field: &Field, value: String) {
         match field.name() {
             "message" => self.message = Some(value),
-            GROUP_FIELD => self.group = Some(value),
-            _ => self
-                .attributes
-                .push(Attribute::string(Self::key(field), value)),
+            GROUP_FIELD => self.group = (!value.is_empty()).then_some(value),
+            _ => self.push(Attribute::string(Self::key(field), value)),
+        }
+    }
+
+    fn push(&mut self, attribute: Attribute) {
+        if !is_reserved_attribute(&attribute.key) {
+            self.attributes.push(attribute);
         }
     }
 }
 
 impl Visit for FieldVisitor {
     fn record_bool(&mut self, field: &Field, value: bool) {
-        self.attributes
-            .push(Attribute::boolean(Self::key(field), value));
+        self.push(Attribute::boolean(Self::key(field), value));
     }
 
     fn record_i64(&mut self, field: &Field, value: i64) {
-        self.attributes
-            .push(Attribute::signed(Self::key(field), value));
+        self.push(Attribute::signed(Self::key(field), value));
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
-        self.attributes
-            .push(Attribute::unsigned(Self::key(field), value));
+        self.push(Attribute::unsigned(Self::key(field), value));
     }
 
     fn record_f64(&mut self, field: &Field, value: f64) {
-        self.attributes
-            .push(Attribute::float(Self::key(field), value));
+        self.push(Attribute::float(Self::key(field), value));
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
@@ -423,7 +423,11 @@ fn level_is_enabled(level: &tracing::Level, minimum: LevelFilter) -> bool {
 
 fn format_attributes(attributes: &[Attribute]) -> String {
     let mut output = String::new();
-    for (index, attribute) in attributes.iter().enumerate() {
+    for (index, attribute) in attributes
+        .iter()
+        .filter(|attribute| !is_reserved_attribute(&attribute.key))
+        .enumerate()
+    {
         if index > 0 {
             output.push(' ');
         }
@@ -441,6 +445,10 @@ fn format_attributes(attributes: &[Attribute]) -> String {
     }
     output.push('\n');
     output
+}
+
+fn is_reserved_attribute(key: &str) -> bool {
+    matches!(key, "time" | "level" | "msg")
 }
 
 fn append_quoted_if_needed(output: &mut String, value: &str) {
@@ -465,7 +473,19 @@ fn needs_quoting(value: &str) -> bool {
 }
 
 fn is_printable(character: char) -> bool {
-    character.is_ascii() || !character.escape_debug().to_string().starts_with("\\u{")
+    if character.is_ascii() {
+        return true;
+    }
+
+    // `str::escape_debug` preserves Unicode grapheme extenders after a base
+    // character, while `char::escape_debug` escapes them in isolation. Go's
+    // unicode.IsPrint includes those combining marks, so probe in that context.
+    let mut probe = String::with_capacity(1 + character.len_utf8());
+    probe.push('x');
+    probe.push(character);
+    let mut escaped = probe.escape_debug();
+    debug_assert_eq!(escaped.next(), Some('x'));
+    escaped.next() != Some('\\')
 }
 
 fn append_go_quote(output: &mut String, value: &str) {

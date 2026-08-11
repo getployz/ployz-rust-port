@@ -20,10 +20,12 @@ func TestPloyzLogOracle(t *testing.T) {
 
 	logger.Debug("received", "kind", "A", "empty", "", "quoted", "a=b", "line", "a\nb",
 		"ok", true, "signed", int64(-7), "unsigned", uint64(8), "small", 0.00001,
-		"large", 1000000.0, "inf", math.Inf(1))
+		"large", 1000000.0, "inf", math.Inf(1), "time", "removed", "level", "removed", "msg", "removed")
 	logger.Info("no fields")
-	logger.Warn("warning", "unicode", "hello-world", "zero_width", "a\u200bb")
+	logger.Warn("warning", "unicode", "hello-world", "combining", "x\u0301", "zero_width", "a\u200bb")
 	logger.Error("failure", "err", fmt.Errorf("bad value: %d", 3))
+	slog.New(handler).WithGroup("").Info("root empty", "key", "value")
+	slog.New(handler).WithGroup("parent").WithGroup("").Info("nested empty", "key", "value")
 
 	fmt.Printf("PLOYZ_ORACLE_BEGIN\n%s\nPLOYZ_ORACLE_END\n", hex.EncodeToString(output.Bytes()))
 }

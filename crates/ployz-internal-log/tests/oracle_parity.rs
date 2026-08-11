@@ -124,19 +124,40 @@ fn rust_output() -> String {
             small = 0.00001_f64,
             large = 1_000_000_f64,
             inf = f64::INFINITY,
+            time = "removed",
+            level = "removed",
+            msg = "removed",
             "received"
         );
         tracing::info!("no fields");
         tracing::warn!(
             unicode = "hello-world",
+            combining = "x\u{301}",
             zero_width = "a\u{200b}b",
             "warning"
         );
         tracing::error!(err = %format_args!("bad value: {}", 3), "failure");
     });
 
+    let empty_subscriber = tracing_subscriber::registry()
+        .with(TextLayer::new(writer_for(&captured), LevelFilter::DEBUG));
+    tracing::subscriber::with_default(empty_subscriber, || {
+        let empty = tracing::info_span!("empty", ployz.group = "");
+        let _empty = empty.enter();
+        tracing::info!(key = "value", "root empty");
+        let parent = tracing::info_span!("parent", ployz.group = "parent");
+        let _parent = parent.enter();
+        let nested = tracing::info_span!("nested", ployz.group = "");
+        let _nested = nested.enter();
+        tracing::info!(key = "value", "nested empty");
+    });
+
     let bytes = captured.lock().expect("buffer lock").clone();
     String::from_utf8(bytes).expect("Rust log is UTF-8")
+}
+
+fn writer_for(captured: &Arc<Mutex<Vec<u8>>>) -> Buffer {
+    Buffer(Arc::clone(captured))
 }
 
 #[test]
