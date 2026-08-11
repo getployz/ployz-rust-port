@@ -1,0 +1,10 @@
+[package]
+name = "ployz-internal-cli-tui"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+iocraft = { version = "=0.8.4", default-features = false, features = ["unstable-output-streams"] }
+oci-spec = { version = "=0.10.0", default-features = false, features = ["distribution"] }
