@@ -944,6 +944,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-internal-proxy"
+version = "0.0.0"
+dependencies = [
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "ployz-internal-secret"
 version = "0.0.0"
 dependencies = [

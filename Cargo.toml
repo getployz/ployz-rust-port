@@ -11,6 +11,7 @@ members = [
     "crates/ployz-internal-machine-network",
     "crates/ployz-internal-machine-osinfo",
     "crates/ployz-internal-metrics",
+    "crates/ployz-internal-proxy",
     "crates/ployz-scripts",
 ]
 
