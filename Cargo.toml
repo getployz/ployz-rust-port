@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/ployz-internal-secret",
     "crates/ployz-internal-cli-config",
+    "crates/ployz-internal-machine-constants",
     "crates/ployz-internal-machine-network",
 ]
 
@@ -14,4 +15,3 @@ rust-version = "1.96"
 ployz-internal-secret = { path = "crates/ployz-internal-secret" }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
-
