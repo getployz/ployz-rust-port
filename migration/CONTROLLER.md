@@ -16,6 +16,9 @@ one row per package in `migration/PACKAGES.tsv`. The production import DAG is
 defined by `direct_internal_dependencies`; `direct_callers` is its reverse
 index. Test-only imports are recorded separately and remain acceptance inputs.
 
+`upstream/uncloud/experiment/**` is explicitly out of scope by user direction
+as of 2026-08-11. Do not catalog, research, schedule, or port those packages.
+
 The ready queue is dynamic. A package is dependency-ready only when every
 production internal dependency is integrated and every external capability it
 needs has an approved decision. The worker reads the oracle package, its tests,
