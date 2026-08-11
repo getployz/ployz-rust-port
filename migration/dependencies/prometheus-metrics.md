@@ -199,12 +199,14 @@ server:
    `503`) and `promhttp_metric_handler_requests_in_flight`. Construct the handler
    once, because rust-prometheus reports `AlreadyReg` but does not return the
    already-registered collector for Go's idempotent reuse pattern.
-6. The metrics crate does not implement `Accept-Encoding`. The HTTP layer must
-   reproduce the oracle's quality-aware `identity`, gzip, and zstd negotiation,
-   including identity fallback and setting `Content-Encoding` only for a
-   compressed response. If the package's approved HTTP/compression facilities
-   cannot do so, return that transport need to the dependency gate; do not
-   silently omit it, add an async runtime, or create a second metrics registry.
+6. The metrics crate does not implement `Accept-Encoding`. The frozen program
+   does not import `promhttp/zstd`, so the HTTP layer must reproduce the
+   oracle's quality-aware `identity` and gzip negotiation, including fallback
+   for unsupported encodings such as zstd and setting `Content-Encoding` only
+   for a gzip-compressed response. If the package's approved HTTP/compression
+   facilities cannot do so, return that transport need to the dependency gate;
+   do not silently omit it, add an async runtime, or create a second metrics
+   registry.
 
 ### Known limitations
 
@@ -254,8 +256,8 @@ cargo check --locked --manifest-path /tmp/ployz-prometheus-probe.maKg2c/Cargo.to
 
 Package acceptance must add permanent crate-local tests for the same assertions,
 plus HTTP tests covering quality-weighted text and all three protobuf encodings,
-exact content types, gzip/zstd/identity negotiation, 500 error body, and handler
-self-metrics.
+exact content types, gzip/identity negotiation and zstd-only fallback, the 500
+error body, and handler self-metrics.
 
 ## Review
 
