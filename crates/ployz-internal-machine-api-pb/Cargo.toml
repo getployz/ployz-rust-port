@@ -1,0 +1,17 @@
+[package]
+name = "ployz-internal-machine-api-pb"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+build = "build.rs"
+
+[dependencies]
+prost = { version = "=0.14.4", default-features = false, features = ["derive", "std"] }
+prost-types = { version = "=0.14.4", default-features = false, features = ["std"] }
+tonic = { version = "=0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
+tonic-prost = "=0.14.6"
+
+[build-dependencies]
+prost-build = { version = "=0.14.4", default-features = false, features = ["format"] }
+tonic-prost-build = { version = "=0.14.6", default-features = false, features = ["transport"] }
