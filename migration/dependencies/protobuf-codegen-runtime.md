@@ -8,7 +8,7 @@
 | Leading behavior comparator | Google `protobuf`, `protobuf-codegen`, and `protobuf-well-known-types` `=4.35.1-release` with `protoc` 35.1 passes the wire matrix, but the target runtime compiles and links C upb and relies on a large unsafe Rust/C FFI layer. It is not a pure-Rust port dependency and is rejected. |
 | License | Prost: `Apache-2.0`; rust-protobuf: `MIT`; Google v4/protoc/upb: `BSD-3-Clause`, with bundled `utf8_range` under `MIT`; frozen Status schema: `Apache-2.0` |
 | Research date | `2026-08-11` UTC |
-| Request | Controller delegation for `upstream/uncloud/internal/machine/api/pb` |
+| Request | Controller delegation for `upstream/uncloud/internal/machine/api/pb`; the delegation explicitly requires a pure-Rust target runtime, meaning no C/C++ implementation is compiled or linked into the shipped Ployz target. Build-host code generators are evaluated separately. |
 | Exact blocker | Prost 0.14.4 loses ordinary unknown fields; rust-protobuf 3.7.2 loses unknown groups and is approaching end of life; Google v4 preserves the required wire behavior but is a native C/upb runtime, not pure Rust, and its native security/license evidence is incomplete. A pure-Rust candidate or an explicitly reviewed pure-Rust codec design must pass the same 195-fixture oracle matrix. |
 
 ## Scope and observable contract
@@ -179,16 +179,19 @@ The official prebuilt and checked-snapshot strategies both solve compiler
 provisioning. Neither changes Google v4's deployed C/upb runtime, so neither can
 make that candidate pure Rust.
 
-### Source build evidence, correctly scoped
+### Historical source-build evidence, correctly scoped
 
 An official protobuf 35.1 source archive
 (`f0b6838e7522a8da96126d487068c959bc624926368f3024ac8fd03abd0a1ac4`)
 plus Abseil 20250512.1
 (`9b7a064305e9fd94d124ffa6cc358592eb42b5da588fb4e07d09254aa40086db`)
-was built fully disconnected on Linux. The produced `libprotoc 35.1` emitted
-seven files identical to the Linux prebuilt output. That is useful corroboration
-of generated-source determinism, not an obligation to build protoc from source
-on every host and not evidence about target-runtime portability.
+was built fully disconnected on Linux in a temporary research directory. The
+produced `libprotoc 35.1` emitted seven files identical to the Linux prebuilt
+output. The build harness and output manifest were not committed, so this is
+historical corroboration only: it is not reconstructed by the command block
+below and is not approval evidence. In particular, it creates neither an
+obligation to build protoc from source on every host nor evidence about target-
+runtime portability.
 
 ## Exact native license and security analysis of Google v4
 
@@ -227,10 +230,14 @@ reviewing whether the published crate's omission needs a downstream notice
 install. The permissive license classes pass; the packaged-notice audit is
 conditional, not silently waived.
 
-The point-in-time `cargo audit --no-fetch --deny warnings` result over the
-16-package Google-v4 lock was clean against the local 1,211-advisory RustSec
-database. Cargo/RustSec does not audit the bundled C upb implementation or the
-downloaded protoc executable. The official v35.1 `SECURITY.md` (SHA-256
+The historical `cargo audit --no-fetch --deny warnings` result over a
+16-package Google-v4 lock was clean against the then-local 1,211-advisory
+RustSec database. Neither that transient lock nor the advisory-database
+revision was committed, so the result is not reconstructible and is not
+approval evidence. The command below instead performs a fresh scan whose
+transitive resolution and advisory snapshot may differ. Cargo/RustSec does not
+audit the bundled C upb implementation or the downloaded protoc executable.
+The official v35.1 `SECURITY.md` (SHA-256
 `6eefe2a6fbf4e9f404726d9b0b5eee43a4cd265643ee5844d9db13346820fb5f`)
 provides Google's vulnerability reporting process, but this investigation did
 not persist sanitizer/fuzzer results for the exact vendored C snapshot or
@@ -254,10 +261,12 @@ protobuf dependency to the workspace.
 ## Reconstructible verification from repository state
 
 The following commands use only the repository's frozen oracle plus exact
-official release assets. They reconstruct the source hashes, the descriptor
-golden, compiler identity, and dependency/native-surface inventory. They do not
-pretend to reconstruct the historical 195-fixture harness; approval requires
-that harness to be landed in-repository first.
+official release assets. They reconstruct the source hashes, v35.1 descriptor
+golden, compiler identity, notice/security hashes, and dependency/native-source
+inventory. The audit is explicitly a fresh current scan. These commands do not
+reconstruct the historical source build, 27.3/v31.1 descriptor comparison,
+historical audit, or 195-fixture harness; none is approval evidence. Approval
+requires a repository-owned oracle harness and pinned acceptance inputs.
 
 ```sh
 repo=$(git rev-parse --show-toplevel)
@@ -285,6 +294,28 @@ done
 01bf9d08808c7f96678b63f4bd8efa559bb4f83d5a7a270d5edaf507f9d5d9cf  protoc-35.1-linux-aarch_64.zip
 537d73604a344ded6fc94e98e07e529d4fe3e4a0b09e59905353950fafc2a1f7  protoc-35.1-osx-x86_64.zip
 193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2  protoc-35.1-osx-aarch_64.zip
+SUMS
+)
+for asset in \
+  protoc-35.1-linux-x86_64.zip \
+  protoc-35.1-linux-aarch_64.zip \
+  protoc-35.1-osx-x86_64.zip \
+  protoc-35.1-osx-aarch_64.zip
+do
+  test "$(unzip -p "$probe/$asset" readme.txt | sha256sum | cut -d' ' -f1)" = \
+    "cb87be42344000337bef2e65de178c7e2f9cd7a1b7cd0e4284377a5d375db82f"
+  test -z "$(unzip -Z1 "$probe/$asset" | rg '(^|/)LICENSE($|\.)' || true)"
+done
+curl -fsSLo "$probe/protobuf-LICENSE" \
+  https://raw.githubusercontent.com/protocolbuffers/protobuf/v35.1/LICENSE
+curl -fsSLo "$probe/utf8-range-LICENSE" \
+  https://raw.githubusercontent.com/protocolbuffers/protobuf/v35.1/third_party/utf8_range/LICENSE
+curl -fsSLo "$probe/SECURITY.md" \
+  https://raw.githubusercontent.com/protocolbuffers/protobuf/v35.1/SECURITY.md
+(cd "$probe" && sha256sum -c <<'SUMS'
+6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d  protobuf-LICENSE
+02de69b64fc36d9e938f418e52723e42f0b2b226d58a9cb3c8dcbdf7059f5074  utf8-range-LICENSE
+6eefe2a6fbf4e9f404726d9b0b5eee43a4cd265643ee5844d9db13346820fb5f  SECURITY.md
 SUMS
 )
 unzip -q "$probe/protoc-35.1-linux-x86_64.zip" -d "$probe/protoc"
@@ -327,6 +358,7 @@ cargo +1.96.0 vendor --locked --versioned-dirs \
   --manifest-path "$probe/cargo/Cargo.toml" "$probe/vendor" >/dev/null
 cargo +1.96.0 check --locked --offline \
   --manifest-path "$probe/cargo/Cargo.toml"
+# This is a fresh scan, not a reproduction of the historical audit snapshot.
 cargo audit --no-fetch --deny warnings --file "$probe/cargo/Cargo.lock"
 
 runtime="$probe/vendor/protobuf-4.35.1-release"
@@ -338,6 +370,13 @@ sha256sum \
   "$runtime/build.rs" \
   "$runtime/libupb/upb/upb.c" \
   "$runtime/libupb/third_party/utf8_range/utf8_range.c"
+(cd "$runtime" && sha256sum -c <<'SUMS'
+6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d  LICENSE
+cbb1a47443a1c50d888c3124662dca3136314f94d331ab0db25a5fe3340d4146  build.rs
+ad14fdcd0da6fa09632443356f797d124e70f3f11cb6b4f12ced3318e0258505  libupb/upb/upb.c
+f564d1f3bb9e1a477a30e683c4d994a113fb6efcd98b51b6ae95cbe9ee4c936b  libupb/third_party/utf8_range/utf8_range.c
+SUMS
+)
 test "$(find "$runtime/libupb" -type f | wc -l)" = "192"
 test "$(rg -l 'unsafe|extern "C"' "$runtime/src" | wc -l)" = "39"
 test "$(rg -n 'unsafe|extern "C"' "$runtime/src" | wc -l)" = "465"
@@ -358,9 +397,13 @@ b35706fa0e4b2354f67f8d7b8e6b55584d0c4dae920d5f6d2bc2e7ba22f9d6c1  status.proto
 ```
 
 The descriptor set is intentionally the six direct input descriptors, without
-imported WKT file bodies. Frozen compiler 27.3, official v31.1, and official
-v35.1 emitted the same 11,671 bytes. This proves schema grammar/descriptor
-parity; it does not manufacture a runtime-reflection requirement.
+imported WKT file bodies. The command reconstructs the official v35.1 result:
+11,671 bytes at the recorded hash. Temporary historical probes reported the
+same bytes from frozen compiler 27.3 and official v31.1, but their harnesses and
+outputs were not persisted, so that cross-version comparison is corroboration,
+not approval evidence. The v35.1 golden proves schema grammar/descriptor parity
+for the evaluated compiler; it does not manufacture a runtime-reflection
+requirement.
 
 ## No approved integration
 
@@ -390,4 +433,14 @@ gate, under-specified native licensing/security, relied on `/tmp` probes as
 reconstructible evidence, and mixed descriptor validation with unused runtime
 reflection. This correction keeps the decision blocked for the narrower,
 truthful reason: no evaluated pure-Rust runtime passes the required wire and
-maintenance gates. Fresh adversarial review of the corrected commit is pending.
+maintenance gates.
+
+Fresh adversarial reviewer `/root/protobuf_record_fix/protobuf_corrected_review`
+reproduced every core empirical claim and the 195-fixture result, then returned
+`NEEDS CHANGES` on commit `585997d`: the pure-Rust gate lacked durable provenance,
+and the record overstated reconstruction of unpersisted source-build,
+cross-version descriptor, notice/security-hash, and audit evidence. This
+revision records the delegation's exact gate, adds executable notice/security
+hash checks, labels the scan as current, and explicitly demotes every
+unpersisted comparison to non-approval historical evidence. Fresh re-review of
+this corrected record is required; no finding is waived.
