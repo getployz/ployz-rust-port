@@ -1,0 +1,15 @@
+[package]
+name = "ployz-internal-cli-config"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+ployz-internal-secret.workspace = true
+serde.workspace = true
+serde_yaml = "0.9"
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
