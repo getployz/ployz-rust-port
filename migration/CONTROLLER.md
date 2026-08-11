@@ -10,14 +10,15 @@ accepted work. It does not implement package crates or review its own changes.
 
 ## Build and maintain the package graph
 
-Catalog every Go package from the frozen oracle, including nested Go modules,
-generated packages, platform-specific packages, experiments, and tests. Record
-one row per package in `migration/PACKAGES.tsv`. The production import DAG is
-defined by `direct_internal_dependencies`; `direct_callers` is its reverse
-index. Test-only imports are recorded separately and remain acceptance inputs.
+Catalog every in-scope Go package from the frozen oracle, including nested Go
+modules, generated packages, platform-specific packages, and tests. Record one
+row per package in `migration/PACKAGES.tsv`. The production import DAG is defined
+by `direct_internal_dependencies`; `direct_callers` is its reverse index.
+Test-only imports are recorded separately and remain acceptance inputs.
 
 `upstream/uncloud/experiment/**` is explicitly out of scope by user direction
-as of 2026-08-11. Do not catalog, research, schedule, or port those packages.
+as of 2026-08-11. Skip it entirely: do not catalog, research, schedule, port, or
+use it as acceptance evidence.
 
 The ready queue is dynamic. A package is dependency-ready only when every
 production internal dependency is integrated and every external capability it
