@@ -8,7 +8,7 @@
 | License | `Apache-2.0` |
 | Research date | `2026-08-11` UTC |
 | Request | No request file was present; capability was delegated directly for `upstream/uncloud/internal/docker` |
-| Exact blocker | Approval is blocked on D01-D06: explicit authority for plain TCP/unverified TLS; cancellable lazy construction plus the frozen broad connection-failure retry class and backoff; native exact-lock evidence on shipped macOS amd64/arm64 and Linux arm64; a declared Engine/API floor with the complete caller-operation and exact negotiation matrix; durable typed pull/push cancellation and race proofs; and resolution of Bollard's unconditional request-header timeout versus the frozen context-only timeout policy. The current `/tmp` probes are useful exploratory evidence but do not close a gate. |
+| Exact blocker | Approval is blocked on D01-D06: explicit authority for plain TCP/unverified TLS; cancellable lazy construction plus the frozen broad connection-failure retry class and backoff; durable native exact-lock build, license, audit, and runtime evidence on shipped Linux/macOS amd64/arm64 targets; a declared Engine/API floor with the complete caller-operation and exact negotiation matrix; durable typed pull/push cancellation and race proofs; and resolution of Bollard's extra request-to-response-header deadline while preserving the frozen transport's dial/TLS phase timeout behavior. The current `/tmp` probes are useful exploratory evidence but do not close a gate. |
 
 ## Verdict
 
@@ -52,7 +52,10 @@ transcript and fallback semantics before any modifier policy becomes mandatory.
   and Docker's multiplexed stdout/stderr format:
   [`service.go`](../../upstream/uncloud/internal/machine/docker/service.go),
   [`controller.go`](../../upstream/uncloud/internal/machine/docker/controller.go),
-  and [`service_test.go`](../../upstream/uncloud/internal/machine/docker/service_test.go).
+  [`server.go`](../../upstream/uncloud/internal/machine/docker/server.go),
+  [`corroservice/docker.go`](../../upstream/uncloud/internal/machine/corroservice/docker.go),
+  [`ucind/cluster.go`](../../upstream/uncloud/internal/ucind/cluster.go), and
+  [`service_test.go`](../../upstream/uncloud/internal/machine/docker/service_test.go).
 - The shipped clients are Linux and macOS on amd64 and arm64; the daemon is
   Linux-only. Windows is commented out in the frozen release definition:
   [`.goreleaser.yaml`](../../upstream/uncloud/.goreleaser.yaml).
@@ -121,10 +124,10 @@ transcript and fallback semantics before any modifier policy becomes mandatory.
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | Complete caller surface; exact errors/retries; streaming pull/push; cancellation; API negotiation and timeout compatibility | Public APIs appear to cover most operations, and exploratory probes establish some feasibility, but do not prove parity. Missing evidence includes in-flight ping cancellation, the frozen broad connection-failure class, typed stream errors and ordered cancellation races, complete volume/archive/exec/container/image/network/event/log behavior at the support floor, lazy HEAD-ping negotiation and malformed override behavior, and context-only header waits. | **`blocked`: D02, D04, D05, D06** |
-| License and security | Apache-2.0-compatible permissive graph; no known vulnerability; safe local socket and verified mutual-TLS modes | Direct license is Apache-2.0. All 120 external packages in the exploratory all-target probe graph used Apache/MIT/ISC/BSD/Unicode/Unlicense/Zlib-family compatible terms. RustSec found no vulnerability or warning in that ephemeral exact lock. No package-owned `unsafe` or raw socket FFI is needed; Ring and platform certificate/socket crates encapsulate their native/unsafe internals. Docker warns that daemon access is effectively host-root access, so endpoints remain trusted configuration. The frozen environment behavior can select plain TCP or unverified TLS, while this record intentionally permits only local sockets or verified TLS. | **`blocked`: D01 requires human authority** |
+| Behavior | Complete caller surface; exact errors/retries; streaming pull/push; cancellation; API negotiation and timeout compatibility | Public APIs appear to cover most operations, and exploratory probes establish some feasibility, but do not prove parity. Missing evidence includes in-flight ping cancellation, the frozen broad connection-failure class, typed stream errors and ordered cancellation races, complete volume/archive/exec/container/image/network/event/log behavior at the support floor, lazy HEAD-ping negotiation and malformed override behavior, and the extra request-to-response-header deadline. | **`blocked`: D02, D04, D05, D06** |
+| License and security | Apache-2.0-compatible permissive graph; no known vulnerability; safe local socket and verified mutual-TLS modes | Direct license is Apache-2.0. The exploratory 120-package graph used compatible terms and its ephemeral lock had no RustSec finding, but neither result is durable gate evidence. D03 must commit the exact lock and preserve the full graph license/audit results. No package-owned `unsafe` or raw socket FFI appears necessary; Ring and platform certificate/socket crates encapsulate their native/unsafe internals. Docker warns that daemon access is effectively host-root access, so endpoints remain trusted configuration. The frozen environment behavior can select plain TCP or unverified TLS, while this record intentionally permits only local sockets or verified TLS. | **`blocked`: D01; D03 durable graph evidence** |
 | Platforms and targets | Shipped Linux/macOS amd64/arm64, Unix-socket local daemon, configured TCP/mTLS | An exploratory Linux x86_64 Rust 1.96 run/check passed. `pipe`'s Unix connector is target-gated portable Tokio/hyperlocal code; `ssl` uses rustls and native roots. The Linux-to-Intel-macOS check reached Ring's C compilation and failed because no Apple target C compiler/SDK is installed. Bollard has first-party Linux/Windows transport integration CI, but neither cross-compilation nor upstream CI proves the shipped native targets under this exact feature set and lock. | **`blocked`: D03** |
-| Maintenance and Rust version | Active current release compatible with workspace Rust 1.96 | 0.21.0 was current and non-yanked; repository activity continued on the research date. The crate declares no `rust-version`, but the exploratory exact graph built, ran, and passed warnings-denied Clippy with Rust 1.96.0. | `pass` |
+| Maintenance and Rust version | Active current release compatible with workspace Rust 1.96 | 0.21.0 was current and non-yanked; repository activity continued on the research date. The crate declares no `rust-version`. An ephemeral exact graph built, ran, and passed warnings-denied Clippy with Rust 1.96.0, but D03 must reproduce that result from a committed exact lock. | **`blocked`: D03 durable Rust 1.96 evidence** |
 | Architectural constraints | Idiomatic async API; no subprocess or bespoke Docker REST implementation; bounded build/runtime surface | Bollard uses Tokio/futures streams and generated Engine models directly, with 120 external packages in the exploratory exact lock. However its public GET-only Ping/version negotiation and mandatory header timeout may require a new low-level transport or upstream change to meet D04/D06; that feasibility is unresolved. | **`blocked`: D04, D06** |
 | Critical review | Fresh adversarial review for container control | Fresh review of `024193d` reran the exploratory probes successfully but rejected their gate-closing claims and found the D04 matrix/version policy and request timeout incomplete. This record incorporates those findings and requires re-review as a truthful blocked decision. | `pending re-review` |
 
@@ -195,12 +198,14 @@ deterministic exploratory scheduler.
 
 ### D03 — Native shipped-platform evidence
 
-Provide native, exact-feature and exact-lock evidence for macOS amd64, macOS
-arm64, and Linux arm64. For each target, preserve the host OS/architecture,
-Rust toolchain, dependency line, and lockfile identity, and run build/check plus
-warnings-denied Clippy. Runtime evidence must cover Docker Desktop's Unix socket
-on both macOS architectures, the Unix socket on Linux arm64, and verified TLS
-where that transport is shipped. Linux-to-macOS cross-compilation and Bollard's
+Commit the exact feature set and lock, then provide native evidence for Linux
+amd64/arm64 and macOS amd64/arm64. Preserve the host OS/architecture, Rust
+toolchain, dependency line, and lockfile identity for each target; run
+build/check, warnings-denied Clippy, complete graph license enumeration, and
+RustSec audit from those durable artifacts. Runtime evidence must cover Docker
+Desktop's Unix socket on both macOS architectures, the Unix socket on both Linux
+architectures, and verified TLS where that transport is shipped.
+Linux-to-macOS cross-compilation, ephemeral `/tmp` results, and Bollard's
 upstream Windows CI do not close this gate.
 
 ### D04 — Declared Docker Engine/API support floor
@@ -214,28 +219,33 @@ caller operation, not a representative subset:
   binding data;
 - image pull, push, inspect, tag, list with manifests, and remove, including
   registry auth, encoded empty push auth, stream errors, and OCI platform;
-- network create, inspect, and remove with IPAM, labels, options, and attached
-  container data;
+- network create, inspect, list, and remove with IPAM, labels, options, and
+  attached container data;
 - volume create, list, inspect, and remove;
 - event streams and raw-TTY versus multiplexed log streams;
 - `CopyToContainer` archive upload; and
 - exec create, start, attach/hijack, resize, and inspect, including cancellation
-  and exit status.
+  and exit status;
+- client close/drop lifecycle, including cancellation and cleanup of live
+  streams and in-flight requests.
 
 Each case must cover query/body/model conversion, unknown response fields,
-status classification, exact caller-visible context, and cancellation. Legacy
-tar build, image import/export, and archive download need capability probes but
-are not substitutes for frozen Compose/BuildKit behavior.
+status classification, exact caller-visible context, and cancellation. Do not
+expand this matrix to unused legacy tar build, image import/export, or archive
+download operations. Frozen Compose/BuildKit behavior belongs to its actual
+caller and is not part of this dependency decision.
 
 The same durable transcript must characterize the frozen version policy before
 any request modifier is accepted. Docker 28.5 negotiates lazily on the first
 normal request using unversioned HEAD `/_ping`, falls back to GET when HEAD is
 not supported, reads the `Api-Version` header, and falls back to API 1.24 when
 the header is absent. Every direct Ping remains unversioned. A non-empty
-`DOCKER_API_VERSION` strips an optional leading `v`, accepts any remaining
-string without `MAJOR.MINOR` validation, and disables negotiation; malformed
-values affect later request-path or server behavior rather than failing during
-client construction. Bollard instead negotiates with
+`DOCKER_API_VERSION` strips one optional leading lowercase `v`; only a nonempty
+remainder sets the manual version and disables negotiation. The remaining value
+is accepted without `MAJOR.MINOR` validation and malformed nonempty values affect
+later request-path or server behavior rather than failing during client
+construction. Empty and exactly `v` leave negotiation enabled and must be in
+the transcript matrix. Bollard instead negotiates with
 GET `/version`, requires a parseable response field, and its Ping is GET-only.
 The exploratory modifier also incorrectly versioned Ping. Its handling of
 redirects differs: the Go non-GET redirect policy returns an error which becomes
@@ -272,20 +282,25 @@ and producer join/no orphan task. The probe sources, fixtures, manifests, exact
 locks, and output assertions must be committed under a controller-authorized
 research path before this gate can close.
 
-### D06 — Request-header timeout parity
+### D06 — Extra request-to-response-header deadline
 
-The frozen Docker client's default `http.Client` has no whole-request timeout;
-every request waits according to its supplied context. Bollard wraps every
-request-to-response-headers future in `tokio::time::timeout` and defaults to
-120 seconds. That adds an error and deadline to background-context requests and
-interacts with daemon-readiness cancellation.
+The frozen Docker client's default `http.Client` has no whole-request timeout,
+but it is not timeout-free: `docker/go-connections/sockets.ConfigureTransport`
+installs a 10-second dial timeout and Go's HTTP transport has phase-specific
+defaults such as its TLS-handshake timeout. After transport setup, response
+headers otherwise wait according to the supplied context. Bollard additionally
+wraps every request-to-response-headers future in `tokio::time::timeout` and
+defaults to 120 seconds. That adds an error and deadline to background-context
+requests and interacts with daemon-readiness cancellation.
 
 Declare a parity-safe constructor timeout policy and prove it with durable
 stalled-header tests for background context, finite deadline before and after
 the Bollard timeout, cancellation races, and a response arriving near the
-boundary. Passing a merely large finite timeout is not exact. If Bollard cannot
-disable its timeout, the candidate needs an upstream change, alternate
-transport, or explicit authority to accept the new limit.
+boundary. The same tests must preserve the frozen 10-second dial timeout and
+relevant transport-phase timeout behavior. Passing a merely large finite header
+timeout is not exact. If Bollard cannot disable its extra header deadline, the
+candidate needs an upstream change, alternate transport, or explicit authority
+to accept the new limit.
 
 ## Selected integration
 
@@ -395,16 +410,17 @@ credential-helper executable or a hand-written credential-store protocol.
 - Bollard 0.21.0 generates Engine 1.53 types. Negotiation controls server
   behavior, but package tests must exercise the oldest Docker version Ployz
   supports for every field it treats as required.
-- Bollard does not declare an MSRV. Rust 1.96 compatibility is established only
-  for the exact lock generated during this research; an upgrade needs a new
-  toolchain check.
+- Bollard does not declare an MSRV. The ephemeral exact lock passed Rust 1.96,
+  but D03 requires durable evidence before compatibility is established; an
+  upgrade needs a new toolchain check.
 - The selected `ssl` feature uses Ring and therefore a C/assembly build script.
-  Native Linux passed. Linux-to-macOS cross-checking failed because this VM has
-  no Apple target compiler/SDK; native macOS amd64/arm64 and Linux arm64
-  exact-feature/exact-lock build and runtime checks remain required by D03.
-- The dependency's mandatory request-header timeout is not an accepted known
-  limitation. D06 must resolve its divergence from the frozen context-only
-  policy before approval.
+  An exploratory native Linux amd64 run passed. Linux-to-macOS cross-checking
+  failed because this VM has no Apple target compiler/SDK; durable native macOS
+  amd64/arm64 and Linux amd64/arm64 exact-feature/exact-lock build and runtime
+  checks remain required by D03.
+- The dependency's extra request-to-response-header deadline is not an accepted
+  known limitation. D06 must resolve it while retaining the frozen dial and
+  transport-phase timeout behavior.
 - SSH Docker hosts, Docker contexts, BuildKit, WebSockets, and Podman discovery
   are not approved by this feature set. Return to the dependency gate before
   enabling their features or advertising those modes.
@@ -532,4 +548,6 @@ blockers; it does not authorize Bollard use.
 Affected package: `upstream/uncloud/internal/docker` / future
 `crates/ployz-internal-docker`. Direct dependents that informed the decision are
 `upstream/uncloud/internal/machine`,
-`upstream/uncloud/internal/machine/docker`, and `upstream/uncloud/pkg/client`.
+`upstream/uncloud/internal/machine/docker`,
+`upstream/uncloud/internal/machine/corroservice`,
+`upstream/uncloud/internal/ucind`, and `upstream/uncloud/pkg/client`.
