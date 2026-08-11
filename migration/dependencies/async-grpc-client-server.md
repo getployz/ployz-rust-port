@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required` (corrected candidate pending fresh re-review) |
+| Status | `approved` |
 | Selected dependency | `tonic 0.14.6` with `tonic-build 0.14.6`, on `tokio 1.53.1` and response-aware `tower 0.5.3` middleware |
 | License | `MIT` for Tonic, Tokio, Tower, Tokio Stream, Hyper Util, and Bytes; `MIT OR Apache-2.0` for HTTP |
 | Research date | `2026-08-11` UTC |
-| Request | Controller delegation for `async-grpc-client-server`; no request file exists at base `147dbcf` |
+| Request | Controller delegation for `async-grpc-client-server`; no request file exists at exact base `bb1d841c3ad59874c5076469a16aeb0ac409c3ea` |
 
 ## Scope and oracle contract
 
@@ -15,9 +15,10 @@ The dependency registry immediately blocks `internal/machine/api/pb` and
 also consumed later by `internal/machine` (server construction),
 `pkg/client/connector` (channels and custom transports), and
 `internal/machine/api/proxy` (raw-codec proxy calls). This decision does not
-decide protobuf message representation, descriptor fidelity, transparent
-proxying, or connector retry policy; the latter two consumers therefore retain
-explicit follow-up gates below.
+decide protobuf message representation, descriptor fidelity, package-level
+proxy implementation, or connector retry policy. It does decide that the
+selected stack has the public unknown-path and raw-codec surfaces required by
+the proxy, and fixes their adapter contract below.
 
 The frozen oracle has four services and 38 RPCs: 34 unary, three server-streaming,
 and one bidirectional-streaming RPC. The service definitions are
@@ -46,10 +47,10 @@ descriptors are a separate concern of the blocked
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
 | Behavior | Preserve canonical paths, all oracle streaming shapes, metadata and conditional response headers, status details/trailers, deadlines, cancellation, and custom async transports. | Tonic exposes unary/client-streaming/server-streaming/bidirectional codec paths, generic codecs, metadata-bearing `Request`/`Response`/`Status`, trailers, timeout encoding, custom channel connectors, and custom server incoming IO. The corrected locked probe asserts version rejection/success/error ordering and client warning timing as well as the oracle RPC shapes. Tonic documents cancellation by dropping an in-flight future/stream. | `pass` |
-| License and security | Permissive licensing and no known RustSec advisories in the selected closure. | Exact manifests carry MIT or MIT/Apache-2.0-compatible licenses. `cargo audit` against 1,211 RustSec advisories reported zero vulnerabilities for the 66-package locked probe closure on 2026-08-11. | `pass` |
-| Platforms and targets | Build on Linux and macOS, x86_64 and aarch64; make Unix transport behavior explicit. | The exact lockfile passed `cargo check` for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `aarch64-apple-darwin`. Tonic's built-in `unix:` connector is Unix-only; custom connectors remain available for SSH, stdio, and tunnel transports. | `pass` |
+| License and security | Permissive licensing and no known RustSec advisories in the selected closure. | Exact direct manifests carry MIT or MIT/Apache-2.0-compatible licenses; the locked transitive closure is permissive (MIT, Apache-2.0, BSD-3-Clause, Unicode-3.0, or Unlicense combinations). A fresh `cargo audit` against 1,211 RustSec advisories reported zero vulnerabilities for the 64-package raw-proxy probe closure on 2026-08-11; the earlier 66-package generated-service closure was also clean. | `pass` |
+| Platforms and targets | Build on Linux and macOS, x86_64 and aarch64; make Unix transport behavior explicit. | Both locked probes passed `cargo check` for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `aarch64-apple-darwin` under Rust 1.96. Tonic's built-in `unix:` connector is Unix-only; custom connectors remain available for SSH, stdio, and tunnel transports. | `pass` |
 | Maintenance and Rust version | Maintained releases, declared MSRV compatible with the port, credible adoption. | Tonic 0.14.6 was released 2026-05-07, declares Rust 1.88, and has 3,256 crates.io reverse dependents. Tokio 1.53.1 and Tower 0.5.3 declare Rust 1.71 and 1.64 respectively. OpenTelemetry Rust and Linkerd2 Proxy use Tonic in their current manifests. | `pass` |
-| Architectural constraints | Must not force a protobuf runtime while that critical decision is blocked; the ordinary four-service backend must remain un-intercepted, while conditional version middleware wraps only the two raw-codec unknown-service proxy frontends. | `tonic::codec::Codec` is generic and `tonic-build::manual` accepts caller-supplied message types and codec paths. The semantic middleware harness proves ordering on a registered custom-codec service, but this research did not demonstrate the same composition through a Tonic raw-codec unknown-service/transparent-proxy path. | `blocked` pending the proxy design/probe |
+| Architectural constraints | Must not force a protobuf runtime while that critical decision is blocked; the ordinary four-service backend must remain un-intercepted, while conditional version middleware wraps only the two raw-codec unknown-service proxy frontends. | `tonic::codec::Codec` is generic, `tonic-build::manual` accepts caller-supplied message and codec paths, `Server::serve_with_incoming` accepts an arbitrary Tower service for the proxy-only listener, and public server/client `Grpc::streaming` accept a caller codec plus dynamic `PathAndQuery`. A codec-level runtime probe composed all four surfaces on unknown paths and preserved duplicate/binary metadata, bidirectional messages, success trailers, non-OK status/details, cancellation, rewritten whole-stream deadlines, and unsupported-compression rejection. A separate raw HTTP/2 probe covers multiplexing, resets, keepalive, and graceful shutdown. | `pass` |
 
 ### Primary evidence
 
@@ -74,6 +75,26 @@ descriptors are a separate concern of the blocked
   [endpoint](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/transport/channel/endpoint.rs),
   [Unix connector](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/transport/channel/uds_connector.rs),
   [server](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/transport/server/mod.rs).
+- Tonic's public raw composition is sufficient without private Hyper/H2 APIs:
+  `Server::serve_with_incoming` accepts the arbitrary Tower service used by a
+  proxy-only listener; `server::Grpc::streaming` accepts an arbitrary HTTP body,
+  codec, and `StreamingService`; and `client::Grpc::streaming` accepts a caller
+  codec and dynamic `PathAndQuery`. `Routes::into_axum_router` also exposes a
+  fallback if registered and unknown services ever must share one listener:
+  [server codec](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/server/grpc.rs),
+  [client codec](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/client/grpc.rs),
+  [router](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/service/router.rs).
+- `MetadataMap` is backed by `http::HeaderMap` and preserves repeated ASCII and
+  binary entries. `Streaming` parses arbitrary DATA boundaries and exposes
+  terminal metadata; the server encoder serializes a terminal `Status`,
+  including a code-OK status carrying successful custom trailers:
+  [metadata map](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/metadata/map.rs),
+  [decoder](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/codec/decode.rs),
+  [encoder](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/codec/encode.rs).
+- The official gRPC-over-HTTP/2 protocol defines duplicate metadata, `-bin`
+  values, the five-byte message envelope, compression, timeouts, trailers, and
+  status details. Those are the wire-level acceptance oracle for the bounded
+  adapter: [protocol](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md).
 - Crates.io records exact release, MSRV, download, and dependent data for
   [Tonic](https://crates.io/api/v1/crates/tonic),
   [Tokio](https://crates.io/api/v1/crates/tokio), and
@@ -122,28 +143,67 @@ does not register network reflection. The future package implementation should:
    streaming methods as async streams; dropping the call future/stream is the
    cancellation mechanism, consistent with Tonic's
    [cancellation example](https://github.com/grpc/grpc-rust/tree/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/examples/src/cancellation).
-3. Keep the ordinary four-service backend created by `newGRPCServer`
+3. Build the two proxy frontends as a bounded codec-level fallback service, not
+   a hand-built Hyper/H2 stack. Implement `RawCodec` with
+   `Encode = Decode = bytes::Bytes`; capture the incoming `PathAndQuery` before
+   decoding; serve that Tower service directly with
+   `Server::serve_with_incoming` on each proxy-only listener; and call public
+   `tonic::server::Grpc::streaming` and
+   `tonic::client::Grpc<Channel>::streaming` for every method. This makes Tonic
+   own gRPC envelopes, size limits, compression validation, metadata, and status
+   encoding while leaving schema-independent messages to the proxy.
+4. Preserve the frozen one-to-one pump: copy all application metadata including
+   repeated ASCII and binary entries; apply the exact local/remote routing
+   rewrites; pump request and response messages concurrently; copy initial
+   backend metadata only after receiving the first backend message and before
+   emitting that buffered message; if the backend fails before a message, do
+   not expose its initial metadata. Propagate terminal non-OK code, message,
+   binary details, and metadata; and, on success, obtain
+   `Streaming::trailers()` and terminate the frontend response stream with
+   `Status::with_metadata(Code::Ok, "", md)` so successful custom trailers
+   survive. Do not use pure HTTP-body passthrough as the production message
+   path: it bypasses the oracle's codec, compression, size-limit, and
+   transport-header normalization behavior.
+5. Preserve the frozen one-to-many limitation. The oracle installs no streamed
+   detector, so plural-machine routing always broadcasts request messages to
+   bounded per-backend channels, cheaply clones `Bytes`, applies backpressure,
+   converts backend failures to protobuf payloads, mutates successful payloads,
+   and concatenates completion-order payloads into exactly one response message.
+   Copy every backend's initial metadata when that backend produces its first
+   message, using the same timing rule as one-to-one, and aggregate every
+   backend's successful trailers into the frontend trailer map. Preserve
+   repeated ASCII and binary values rather than overwriting them. A backend
+   failure becomes its protobuf error payload as the oracle requires, so its
+   gRPC status metadata is not promoted to the frontend terminal status. Do not
+   add a plural-machine streaming mode or impose deterministic backend order.
+6. Parse `grpc-timeout` once at ingress into an absolute deadline and write the
+   remaining duration to each outgoing backend request. Own all upstream tasks
+   through the returned response stream; dropping that stream, a downstream
+   reset, cancellation, or deadline expiry must cancel every backend. Tonic's
+   transport timeout wraps only the service future, so it is not sufficient for
+   a response body that outlives that future.
+7. Keep the ordinary four-service backend created by `newGRPCServer`
    un-intercepted. Add both client-version metadata values with a Tonic client
-   request interceptor. Only the two transparent-proxy frontends may receive the
-   conditional version service, after the proxy gate demonstrates a raw-codec
-   unknown-service composition. That service must validate the raw metadata
-   headers before calling the proxy handler: a rejected call returns
-   `FailedPrecondition` **without** `uncloud-server-version`; after validation
-   succeeds, it adds the server-version header to the proxy response on both
-   handler success and handler error. An unconditional response-header layer is
-   not equivalent.
-4. Inspect client responses after gRPC decoding, not in a generic HTTP response
+   request interceptor. Wrap only the two raw fallback proxy frontends in the
+   conditional version service. It validates before the director/codec: a
+   rejected call returns `FailedPrecondition` **without**
+   `uncloud-server-version`; after validation succeeds, it adds the server
+   version to success, handler-status, and transport-error responses. An
+   unconditional response-header layer is not equivalent.
+8. Inspect client responses after gRPC decoding, not in a generic HTTP response
    layer. A unary facade checks the server version only on `Ok(Response<_>)` and
    never on `Err(Status)`. A natural `VersionedStreaming<T>` stream wrapper
    retains the initial metadata and exposes an explicit `header()` access that
    performs the one-time warning; merely creating or consuming the stream must
    not warn. This preserves the temporary Go `ClientStream.Header()` timing,
    and no frozen caller invokes that method.
-5. Preserve successful terminal trailers and terminal streaming `Status`
-   details/metadata. The corrected probe covers both cases.
-6. Use `Endpoint::connect_with_connector` and `Server::serve_with_incoming` for
+9. Use `Endpoint::connect_with_connector` and `Server::serve_with_incoming` for
    the existing SSH, stdio, tunnel, and Unix transports. Built-in UDS is not a
-   Windows transport; this matches the currently tested target matrix.
+   Windows transport; this matches the currently tested target matrix. Preserve
+   the remote backend's cached channel, 10-second connect attempt, no call retry,
+   reconnect-after-failure behavior, and 15-second maximum backoff with a small
+   owner-managed lifecycle state machine; Tonic's reconnect service is not the
+   same as grpc-go's background loop.
 
 Direct-support-crate ownership is intentional: `bytes` backs the chosen custom
 codec and raw status details; `http` names the conditional service's request and
@@ -168,17 +228,16 @@ not change the exact selected version transitively.
   ([issue 733](https://github.com/grpc/grpc-rust/issues/733)). Require a separate
   retry dependency/design decision before porting that connector; do not claim
   parity from `tower::retry` alone.
-- **Transparent unknown-service proxying is an architectural blocker.** The
-  frozen local and cluster proxy frontends combine the raw-byte codec,
-  `UnknownServiceHandler`, and version interceptors; the ordinary registered
-  four-service backend has no version interceptors. The semantic probe below
-  uses a registered custom-codec service and therefore does not prove this
-  composition. Require a separate Tonic raw-codec unknown-service proxy
-  design/probe before the conditional server middleware is accepted or
-  `internal/machine/api/proxy` is released.
+- **Proxy parity remains package work, not a dependency blocker.** The public
+  fallback and raw-codec surfaces pass the dependency gate, but the proxy
+  implementor must still prove the exact one-to-one and one-to-many contract
+  above, including successful custom trailers, completion-order aggregation,
+  whole-stream cancellation/deadlines, and remote reconnect timing. A pure
+  raw-HTTP tunnel is only a lifecycle/differential harness and is not the
+  production adapter.
 - **Server/channel construction has downstream owners.** `internal/machine`
   must keep its ordinary four-service backend un-intercepted and apply version
-  middleware only to its two proxy frontends after the proxy gate passes.
+  middleware only to its two proxy frontends.
   `pkg/client/connector` must reuse this exact stack for TCP, Unix, SSH/stdio,
   and WireGuard channels, but stays gated on the retry decision. These are known
   consumers even though the current dependency registry lists only the two
@@ -189,8 +248,10 @@ not change the exact selected version transitively.
   The controller must reconcile that currently unmatched package blocker when
   integrating records; this researcher does not edit registries.
 - **No transport TLS or compression features are enabled.** Frozen connections
-  are insecure gRPC over separately protected/local transports and configure no
-  gRPC compression. Add either only in response to a new oracle requirement.
+  are insecure gRPC over separately protected/local transports and import no
+  grpc-go compressor. The codec adapter must therefore reject unsupported
+  compressed messages as Tonic does; do not silently add gzip, deflate, or zstd.
+  Add TLS or compression only in response to a new oracle requirement.
 
 ### Verification
 
@@ -213,16 +274,83 @@ explicit stream-header timing, custom codec/connector, RPC shapes, unary and
 terminal-stream status details/metadata, success trailers, and deadline header
 ```
 
-The probe encodes but does not expire a deadline, and it does not claim to have
-observed remote cancellation. Those behaviors rely on Tonic's exact-release
-request documentation and cancellation example cited above and require
-package-level parity tests with real handlers. More importantly, the registered
-service probe does **not** demonstrate `UnknownServiceHandler`-equivalent
-routing or raw transparent proxying, so it cannot release the architectural
-gate above. The locked 66-package graph passed `cargo run --locked`,
-`cargo audit`, and `cargo check --locked` on the four targets named in the
-hard-gate table using Rust 1.96.0. The selected stack's effective MSRV is
-Tonic's declared Rust 1.88.
+The registered-service probe did not expire a deadline or directly observe a
+remote reset, so a second disposable runtime probe targeted the HTTP/2
+lifecycle substrate. It used public `Server::serve_with_incoming_shutdown`, an
+arbitrary `tower::Service<Request<tonic::body::Body>>`, and raw `Channel` calls
+between a client, proxy, and synthetic upstream over real TCP HTTP/2. It asserted:
+
+- exact unknown service and method paths, 13 forwarded calls, and concurrent
+  multiplexing on one channel;
+- duplicate ASCII and base64-encoded binary request/response metadata;
+- gRPC message envelopes split across HTTP DATA frames, request and response
+  trailers, non-OK status/message/details, and duplicate terminal metadata;
+- the conditional version ordering, including no server header on pre-handler
+  rejection and a header on upstream non-OK responses;
+- opaque gzip-flagged message preservation in the raw-body differential path;
+- a 150 ms `grpc-timeout` expiring in Tonic's transport, a downstream response
+  drop causing the upstream body to be dropped through an HTTP/2 reset, and
+  keepalive plus graceful server shutdown after reset/deadline traffic.
+
+```text
+PASS unknown_paths=13 forwarded=13 metadata=duplicates+binary
+trailers=ok+status_details streaming=opaque cancellation=RST deadline=150ms
+compression=gzip_opaque h2=multiplex+keepalive+graceful_shutdown
+```
+
+One adversarial six-run repetition observed a race in this raw-body harness's
+150 ms deadline assertion: Tonic's transport timeout won five times and the
+harness's synthetic `Unavailable` mapping won once. That race does not support
+the production deadline claim. The deterministic codec-level probe below owns
+that claim; the raw-body probe is evidence only for HTTP/2 transport and
+lifecycle behavior, not the production message adapter.
+
+The decisive third disposable probe instantiated `RawCodec` with
+`Encode = Decode = Bytes` on both `tonic::server::Grpc::streaming` and
+`tonic::client::Grpc<Channel>::streaming`. An arbitrary Tower service captured
+the unknown `PathAndQuery` before decoding and forwarded it to a synthetic
+upstream. Six consecutive runs asserted:
+
+- an unregistered service and method path traversing both codec surfaces;
+- three bidirectional messages, including a 64 KiB message, without protobuf
+  interpretation;
+- repeated ASCII and binary request metadata, initial response metadata,
+  successful trailers, and non-OK terminal metadata;
+- a response message followed by `FailedPrecondition`, preserving message,
+  opaque binary details, and repeated ASCII/binary metadata;
+- downstream stream drop closing the upstream producer;
+- a 350 ms ingress deadline enforced across the whole response stream, after a
+  60 ms proxy delay, with a measured 200--320 ms remaining outgoing timeout and
+  upstream producer closure; and
+- a gzip-flagged message rejected as `Unimplemented` because no compression
+  feature is selected.
+
+```text
+PASS codec_unknown_path raw_codec=server+client metadata=duplicates+binary
+bidi=3_messages trailers=ok+non_ok_details cancellation=drop
+deadline=whole_stream+remaining compression=unimplemented
+```
+
+Together the codec and HTTP/2 probes demonstrate the bounded public adapter;
+no custom Hyper/H2 implementation is required. Harness-only `futures-util`,
+`http-body`, and `http-body-util` entries are not approved production
+dependencies. The disposable probe hashes were:
+
+```text
+Cargo.toml  40024e4611121a00dda60df1964e7982659c5112dff22f6c5e1e923d05d2d1ed
+Cargo.lock  8dfd8de5012cfda3b629c90f57a6f8425c9f8b8788df36fc35dc5547110ba085
+src/main.rs f172ea230bc38b9cfc5fd5b866a0f3b96d929162a05fbe6bd50bb080d29598bd
+src/bin/codec_proxy.rs 4670a6ad641f79be514d52464888f296fb63dceee59d75ce411fd8028334ef2d
+```
+
+On Rust 1.96.0, formatted warnings-denied Clippy, six locked codec-probe runs,
+and locked codec-probe checks for all four required targets passed. `cargo
+audit` loaded 1,211 advisories and found no vulnerabilities in the 64-package
+closure. That lock resolved Tonic 0.14.6 with Hyper 1.11.0, H2 0.4.15, Axum
+0.8.9, and Hyper Util 0.1.20. The earlier 66-package generated-service probe
+remains the evidence for `tonic_build::manual`, all oracle RPC shapes, custom
+connectors, successful codec-level trailers, and the grpcversion client/server
+timing. The selected stack's effective MSRV remains Tonic's declared Rust 1.88.
 
 ## Review
 
@@ -241,18 +369,32 @@ candidate commit `9f456597e18466ad33fc4d73b0a221492a03f004` and returned `FINDIN
    status details/metadata, and explicitly narrowing deadline/cancellation
    claims.
 
-A newly named fresh-context re-review of the corrected commit is still required
-before approval.
-
 A subsequent fresh corrected review rejected commit
 `14c0359544e3dbd795277c1434c3339d2a68a590` because it incorrectly assigned
 version middleware to the ordinary four-service backend. This revision fixes
 the oracle mapping: that backend is un-intercepted, and only the two
-unknown-service raw-codec proxy frontends receive version middleware. Because
-the disposable probe covers a registered service rather than that proxy path,
-the architectural gate is now explicitly blocked pending the proxy design/probe.
-The feature configuration was also made byte-for-byte equivalent to the record's
-dependency declarations. Fresh re-review remains queued.
+unknown-service raw-codec proxy frontends receive version middleware. The
+feature configuration was also made byte-for-byte equivalent to the record's
+dependency declarations.
+
+Fresh read-only adversarial reviewer `/root/fresh_adversarial_review` then
+returned `FINDINGS` against the 2026-08-11 blocker-clearing revision:
+
+1. The raw HTTP/2 probe did not instantiate the proposed server/client codec
+   seam. Fixed by the executable codec-level unknown-path probe above.
+2. The one-to-many contract omitted initial metadata and trailer aggregation.
+   Fixed by making their timing, aggregation, duplicate, and binary-value rules
+   explicit in step 5.
+3. The raw probe's deadline result raced. Fixed by narrowing that probe to
+   lifecycle evidence and making the six-run codec probe the whole-stream
+   deadline and remaining-time evidence.
+
+The same read-only reviewer then returned `CLEAN` after independently running
+the codec probe 10 times, the raw lifecycle probe 10 times, Rust 1.96 formatting
+and warnings-denied Clippy, all four locked Linux/macOS x86_64/aarch64 checks,
+and `cargo audit`. The reviewer confirmed that all three findings are resolved,
+the one-to-many metadata/trailer contract matches grpc-proxy v0.5.1, the scope
+contains only this owned record, and the frozen upstream tree is unchanged.
 
 Immediately blocked package registry entries:
 
@@ -262,8 +404,10 @@ Immediately blocked package registry entries:
 Known downstream consumers/follow-up gates:
 
 - `internal/machine` — ordinary backend server construction uses this stack
-  without version interception; both versioned proxy frontends remain
-  proxy-gated.
+  without version interception; its two proxy frontends use the bounded adapter
+  above after their internal dependencies are integrated.
 - `pkg/client/connector` — channel/custom-transport construction uses this
   stack; it remains retry-gated.
-- `internal/machine/api/proxy` — raw-codec client behavior remains proxy-gated.
+- `internal/machine/api/proxy` — the external raw proxy capability is resolved;
+  the package remains `waiting-internal` on `internal/machine/api/pb` and must
+  satisfy the adapter acceptance contract during implementation/review.
