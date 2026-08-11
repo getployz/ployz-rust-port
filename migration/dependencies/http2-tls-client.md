@@ -2,18 +2,19 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` pending the required fresh adversarial networking review |
+| Status | `blocked` after completed fresh adversarial networking review (`REJECT`) |
 | Capability | As registered: `http2-tls-client`; oracle-accurate scope: asynchronous HTTP/2 prior-knowledge client over cleartext TCP (`h2c`) |
 | Provisional dependency | `reqwest = { version = "=0.13.4", default-features = false, features = ["http2"] }` |
 | License | `MIT OR Apache-2.0` |
 | Research date | 2026-08-11 UTC |
 | Request | Direct controller delegation; no dependency-request file exists at base `175dce4` |
 
-No package may consume this provisional selection until the required adversarial
-review is recorded below and the status becomes `approved`. The registry name is
-misleading: the frozen package never performs TLS. Enabling TLS would not improve
-parity and would add a certificate-verification and cryptographic dependency
-surface that production requests cannot reach.
+No package may consume this provisional selection. The fresh adversarial review
+rejected commit `d234319`; gates D01--D03 below require dependency-time evidence
+and, where stated, a human parity/security decision before this record can become
+`approved`. The registry name is misleading: the frozen package never performs
+TLS. Enabling TLS would not improve parity and would add a certificate-verification
+and cryptographic dependency surface that production requests cannot reach.
 
 ## Capability and oracle contract
 
@@ -37,10 +38,11 @@ The selected transport must support:
   unblocking the peer stream;
 - GET and replayable owned-body POST requests, explicit JSON accept/content
   headers, response headers/status, and conditional `Authorization: Bearer`;
-- a package-owned, cancellation-aware exponential retry window beginning at
-  100 ms and bounded at about two seconds for transient transport failures,
-  while response-body decode failures and HTTP statuses are not transport
-  retries; and
+- two distinct retry layers: the Go `http2.Transport`'s internal retry policy
+  for retryable HTTP/2 connection/stream failures, followed only for surfaced
+  `*net.OpError`s by a cancellation-aware exponential wrapper beginning at
+  100 ms and bounded at about two seconds; response-body decode failures and
+  HTTP statuses are not wrapper retries; and
 - stable package-owned error boundaries. Dependency-specific display strings
   and classifiers are not part of the public contract.
 
@@ -65,11 +67,11 @@ Primary oracle and protocol sources:
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | h2c prior knowledge; pooling; GET/POST; headers; streaming; 3 s connect timeout; no overall/read timeout; cancellation; replayable bodies; package-owned retry/error policy | Reqwest's [`ClientBuilder`](https://docs.rs/reqwest/0.13.4/reqwest/struct.ClientBuilder.html) exposes `http2_prior_knowledge`, `connect_timeout`, proxy/redirect policy, and pooled-client configuration. [`Response::chunk`](https://docs.rs/reqwest/0.13.4/reqwest/struct.Response.html#method.chunk) is available without the `stream` feature. [`Request::try_clone`](https://docs.rs/reqwest/0.13.4/reqwest/struct.Request.html#method.try_clone) supports owned-body replay. The loopback probe passed the concrete wire and cancellation cases. | `pass` for the required transport primitives; package acceptance must characterize retry policy and the known NACK limit below |
-| License and security | Permissive license, no advisory, no unnecessary TLS/native crypto, no implicit proxy route | The [0.13.4 manifest](https://docs.rs/crate/reqwest/0.13.4/source/Cargo.toml.orig) declares `MIT OR Apache-2.0`, MSRV 1.85, and shows that only `http2` is selected. A 1,211-advisory RustSec scan of the exact target-inclusive 114-dependency probe lock exited 0. All 113 third-party package licenses were present and permissive/compatible. | `pass`, pending independent review |
+| Behavior | h2c prior knowledge; pooling; GET/POST; headers; streaming; 3 s connect timeout; no overall/read timeout; cancellation; replayable bodies; oracle retry/redirect/error policy | Reqwest's [`ClientBuilder`](https://docs.rs/reqwest/0.13.4/reqwest/struct.ClientBuilder.html) exposes `http2_prior_knowledge`, `connect_timeout`, proxy/redirect policy, and pooled-client configuration. [`Response::chunk`](https://docs.rs/reqwest/0.13.4/reqwest/struct.Response.html#method.chunk) is available without the `stream` feature. [`Request::try_clone`](https://docs.rs/reqwest/0.13.4/reqwest/struct.Request.html#method.try_clone) supports owned-body replay. The loopback probe passed only the cases enumerated under Verification. | `blocked`: D01--D03 are dependency gates, not package acceptance work |
+| License and security | Permissive license, no advisory, no unnecessary TLS/native crypto, no implicit proxy route | The [0.13.4 manifest](https://docs.rs/crate/reqwest/0.13.4/source/Cargo.toml.orig) declares `MIT OR Apache-2.0`, MSRV 1.85, and shows that only `http2` is selected. A 1,211-advisory RustSec scan of the exact target-inclusive 114-dependency probe lock exited 0. All 113 third-party package licenses were present and permissive/compatible. | `pass` for provisional graph; the cross-origin bearer decision in D02 remains blocked |
 | Platforms and targets | Linux daemon amd64/arm64; portable compilation for release-adjacent macOS and Windows targets | Rust 1.96 checks passed for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `x86_64-pc-windows-gnu`. The runtime h2c probe ran on Linux x86_64. No TLS/native trust code is selected. | `pass`; non-Linux checks are compile-only |
 | Maintenance and Rust version | Current, maintained, widely used, MSRV no greater than workspace Rust 1.96 | Official [crates.io metadata](https://crates.io/api/v1/crates/reqwest) on 2026-08-11 reported 0.13.4 current/non-yanked, released 2026-05-25, MSRV 1.85, 634,362,047 total and 159,403,965 recent downloads, and 27,966 reverse dependencies. The repository's latest release is 0.13.4. | `pass` |
-| Architectural constraints | Async Tokio-compatible natural API; no Go-shaped dependency adapter; exact capability only | Reqwest is already async and pooled. The package should own Corrosion request/event/retry semantics and use the dependency's client/request/response model. `json`, `stream`, proxy, compression, and TLS features are unnecessary. | `pass`, pending independent review |
+| Architectural constraints | Async Tokio-compatible natural API; no Go-shaped dependency adapter; exact capability only | Reqwest is already async and pooled. The package should own Corrosion request/event/retry semantics and use the dependency's client/request/response model. `json`, `stream`, proxy, compression, and TLS features are unnecessary. | `pass` for provisional candidate; no consumption while D01--D03 are open |
 
 ## TLS, roots, and hostname verification
 
@@ -109,10 +111,10 @@ signal, not a security guarantee.
 | [`awc 3.8.2`](https://docs.rs/awc/3.8.2/awc/) | Async/streaming and has an explicitly named `dangerous-h2c` feature, but is coupled to the Actix ecosystem, declares no MSRV in crates.io metadata, and brings no parity advantage | 12.3M total / 0.9M recent; 108 reverse dependencies | Reject: far lower adoption and wrong runtime/ecosystem fit |
 | [`ureq 3.4.0`](https://docs.rs/ureq/3.4.0/ureq/) | Popular, lightweight blocking client with good TLS choices, but no HTTP/2 support | 175.4M total / 49.3M recent; 3,242 reverse dependencies | Reject: fails the protocol hard gate |
 
-## Selected integration
+## Provisional integration (not approved)
 
-If the adversarial review accepts the provisional selection, the integrator
-must pin exactly:
+If a later review clears D01--D03 and approves the provisional selection, the
+integrator must pin exactly:
 
 ```toml
 reqwest = { version = "=0.13.4", default-features = false, features = ["http2"] }
@@ -133,6 +135,13 @@ TLS feature for this capability. `Response::chunk()` provides incremental bytes
 without `stream`. The package owns NDJSON framing/decoding, bearer injection,
 status/header interpretation, retry/backoff, and its public errors.
 
+The runtime probe did **not** exercise this exact builder configuration: it
+added `redirect(reqwest::redirect::Policy::none())`, while the provisional
+configuration above leaves reqwest's default redirect policy enabled. Therefore
+the probe supplies no evidence for default redirect behavior, and its pass must
+not be cited for D02. Whether the final configuration uses the default, disables
+redirects, or implements a package policy is intentionally unresolved.
+
 ### Timeout and cancellation contract
 
 - `connect_timeout(3 s)` covers connection establishment and requires a Tokio
@@ -152,21 +161,32 @@ status/header interpretation, retry/backoff, and its public errors.
   transport, body read, HTTP status, and event decode. Reqwest's documented
   [`Error`](https://docs.rs/reqwest/0.13.4/reqwest/struct.Error.html) classifiers
   may inform mapping, but are not the package API.
-- Retry only failures before response headers that the package classifies as
-  transient network/transport errors, stop promptly on cancellation, and bound
-  total elapsed retry time to the oracle's two seconds. Do not retry HTTP status
-  responses or errors encountered while consuming an already-returned body.
-- Reqwest itself retries safe HTTP/2 `GOAWAY(NO_ERROR)` and `REFUSED_STREAM`
-  protocol NACKs, but its 0.13.4 default caps these at two retries. The Go
-  transport has a different internal retry budget. This rare attempt-count and
-  timing divergence must be adversarially assessed and explicitly accepted or
-  this decision remains blocked; reqwest's public custom classifier cannot
-  compose with its private protocol-NACK classifier.
-- Reqwest redirects differ subtly from Go's `http.Client` limit and sensitive
-  header propagation. Corrosion's fixed IP endpoints do not redirect, but the
-  package acceptance probe must characterize a 3xx response and either preserve
-  the oracle policy in package code or record the redirect behavior as an
-  accepted external limitation. Never leak the bearer token to another host.
+- The oracle's two-second `RetryRoundTripper` window applies only after the
+  underlying Go HTTP/2 transport returns an error typed as `*net.OpError`. It
+  does **not** bound retryable NACK/GOAWAY work handled internally by
+  `http2.Transport.RoundTripOpt` before that call returns.
+- In `x/net/http2` v0.43.0 the internal loop permits retry processing while its
+  counter is `<= 6`: the first eligible retry is immediate and later eligible
+  retries use approximately 1, 2, 4, 8, 16, and 32 second delays with jitter.
+  Replay depends on nil/empty bodies, `GetBody`, or the connection becoming
+  unusable before a body was consumed. The request context can interrupt those
+  delays. These source facts must be measured in D01 rather than simplified to
+  a two-second overall retry claim.
+- Reqwest 0.13.4 internally retries safe HTTP/2 `GOAWAY(NO_ERROR)` and
+  `REFUSED_STREAM` protocol NACKs, with a default cap of two extra loads. Its
+  public custom classifier cannot compose with the private protocol-NACK
+  classifier. This follows the [reqwest 0.13.4 retry
+  source](https://docs.rs/crate/reqwest/0.13.4/source/src/retry.rs); D01 must
+  establish the exact observable divergence or a safe way to preserve it.
+- The oracle's `AuthRoundTripper` sits outside `http.Client` redirect handling
+  and adds the bearer token on every round trip. Consequently, even if Go's
+  redirect logic strips a sensitive header when constructing a cross-origin
+  request, the outer wrapper adds it again before transport. Reqwest strips
+  sensitive headers on cross-origin redirects in its [redirect
+  source](https://docs.rs/crate/reqwest/0.13.4/source/src/redirect.rs). D02
+  requires a comparative matrix and an explicit human choice between
+  reproducing the oracle's credential leak and accepting a deliberate
+  security-improving parity divergence.
 
 ## Verification
 
@@ -176,7 +196,8 @@ Two isolated Rust 1.96 probes were created outside the repository:
   exact reqwest feature set. It verified h2c prior knowledge, HTTP/2 version,
   POST/body and bearer/JSON headers, chunked open responses, response-drop
   cancellation visible to the server, replayable owned bodies, and connection
-  error classification.
+  error classification. It configured redirects as `Policy::none`, so it did
+  not test the provisional builder's default redirect behavior.
 - `/tmp/ployz-http2-min.ri5lWK`: exact one-dependency consumer used for lock,
   feature, platform, license, MSRV, Clippy, and RustSec checks.
 
@@ -207,34 +228,83 @@ declared a license; the expressions were MIT, Apache-2.0, BSD-3-Clause, ISC,
 Unicode-3.0, or compatible combinations. This is probe evidence, not approval
 of a future integrated lock with Cargo feature unification.
 
-## Known limitations and package acceptance obligations
+## Blocking dependency gates
 
-1. Run a Corrosion-compatible h2c fixture over IPv4 and IPv6 where available,
-   including more than one concurrent stream and reuse of one client.
-2. Verify connect cancellation and the three-second connect boundary separately
-   from an indefinitely open response body.
-3. Exercise pre-header TCP reset, refused connection, DNS-inapplicable literal
-   address, HTTP/2 `REFUSED_STREAM`, graceful/non-graceful GOAWAY, malformed
-   frames, body truncation, and cancellation during retry/backoff; compare
-   attempts and elapsed bounds with the Go oracle.
-4. Prove GET/POST replay rules, conditional bearer behavior including an empty
-   token, response-header/status handling, and that retries do not mutate the
-   caller's logical request.
-5. Characterize 3xx behavior and bearer containment as described above.
-6. Re-run RustSec, licenses, exact feature inspection, Rust 1.96 checks, and
-   Linux amd64/arm64 builds on the integrated lock. Cargo features are additive;
-   explicitly retain `.no_proxy()` and the h2c URL invariant if another crate
-   later enables proxy or TLS features on reqwest.
-7. HTTPS, roots, hostnames, SNI, invalid certificates, and mTLS are outside this
-   approval and require a fresh dependency decision.
+These are dependency-decision gates. They may not be deferred to package
+acceptance, and passing the earlier feature/build/advisory probes does not clear
+them.
+
+### D01: HTTP/2 protocol retry parity
+
+Run comparative executable Go-oracle and reqwest probes for
+`REFUSED_STREAM`, graceful GOAWAY whose last stream excludes the request,
+non-graceful GOAWAY/first-stream behavior, and other retryable protocol errors
+identified by each transport. Cover GET and owned-body POST. Record, per case:
+
+- total attempts, delay sequence, total elapsed time, and connection reuse;
+- whether and how request bodies replay, including after partial transmission;
+- cancellation during immediate retry and during every backoff stage; and
+- final error category when retries stop.
+
+Either select/configure an implementation that preserves the required oracle
+semantics, or obtain an explicit human decision accepting the measured attempt,
+timing, replay, cancellation, and error divergence. The two-second
+`RetryRoundTripper` window must not be used as a proxy for this evidence.
+
+### D02: redirect and bearer security/parity
+
+Run the same redirect matrix against the frozen Go client and the exact proposed
+reqwest configuration. Cover 301, 302, 303, 307, and 308 for GET and POST;
+relative and absolute locations; same origin; different port; different host;
+redirect chains that leave and return to the origin; body/method replay; and the
+ten-hop/default-limit boundary. Record each request's method, body, origin, and
+`Authorization` header.
+
+The expected central divergence is security-sensitive: the oracle's outer auth
+wrapper re-adds its bearer token on a cross-origin redirected round trip, whereas
+reqwest strips sensitive headers across origins. A human must explicitly choose
+one of: reproduce the leak for strict parity, reject redirects, constrain them to
+the original origin, or accept reqwest's security-improving divergence. That
+decision must specify method/body and redirect-limit behavior too.
+
+### D03: missing dependency-time transport evidence
+
+Extend the exact-candidate executable probe before approval. It must cover:
+
+- cancellation during connection establishment and the measured three-second
+  connect boundary, distinct from refused-connection classification;
+- IPv6 h2c and bracketed address construction;
+- one pooled client carrying concurrent HTTP/2 streams with observed connection
+  reuse;
+- malformed HTTP/2 input and truncated response bodies, including returned
+  error categories and cancellation/unblocking behavior; and
+- every NACK/GOAWAY and redirect case required by D01 and D02.
+
+After those gates, re-run RustSec, licenses, exact feature inspection, Rust 1.96
+checks, and Linux amd64/arm64 builds on the integrated lock. Cargo features are
+additive; retain `.no_proxy()` and the h2c URL invariant if another crate later
+enables proxy or TLS features on reqwest. HTTPS, roots, hostnames, SNI, invalid
+certificates, and mTLS remain outside this decision and require a fresh gate.
 
 ## Review
 
-Fresh adversarial networking review: **pending because all available agent
-slots were occupied during this research task**. This critical capability
-cannot become approved until a different researcher assesses at minimum the
-misnamed TLS scope, h2c security boundary, default protocol-NACK retry mismatch,
-redirect/bearer behavior, cancellation, feature-unification exposure, platform
-claims, licenses, and the probe evidence.
+Fresh controller-launched adversarial networking review of commit `d234319`:
+**REJECT**. The reviewer accepted the existing h2c/TLS-scope, candidate,
+license, maintenance, platform-compile, and basic runtime findings as useful
+provisional evidence, but found the decision incomplete at dependency time:
+
+- **D01:** Go HTTP/2 NACK/GOAWAY retry semantics were misstated as covered by a
+  two-second window and lacked comparative attempt/timing/replay/cancellation
+  probes or an explicit human divergence decision.
+- **D02:** the record missed the oracle's cross-origin redirect bearer leak,
+  reqwest's stripping divergence, a complete redirect matrix, and the required
+  human security/parity decision.
+- **D03:** the probe lacked dependency-time evidence for connect cancellation
+  and the three-second boundary, IPv6, pooled concurrent streams,
+  malformed/truncated bodies, and the D01/D02 cases. Its disabled-redirect
+  configuration also did not match the provisional configuration shown here.
+
+Verdict remains `blocked`; reqwest 0.13.4 is a provisional candidate, not an
+approved dependency.
 
 Affected package: `internal/corrosion` (`crates/ployz-internal-corrosion`).
