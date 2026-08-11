@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required` (fresh adversarial review pending) |
+| Status | `human-decision-required` (corrected candidate pending fresh re-review) |
 | Selected dependency | `tonic 0.14.6` with `tonic-build 0.14.6`, on `tokio 1.53.1` and response-aware `tower 0.5.3` middleware |
 | License | `MIT` for Tonic, Tokio, Tower, Tokio Stream, Hyper Util, and Bytes; `MIT OR Apache-2.0` for HTTP |
 | Research date | `2026-08-11` UTC |
@@ -10,10 +10,14 @@
 
 ## Scope and oracle contract
 
-This decision is deliberately limited to the async gRPC service/client/runtime
-capability used by `internal/machine/api/pb` and `internal/grpcversion`. It does
-not decide protobuf message representation, descriptor fidelity, transparent
-proxying, or connector retry policy.
+The dependency registry immediately blocks `internal/machine/api/pb` and
+`internal/grpcversion` on this capability. The same selected transport stack is
+also consumed later by `internal/machine` (server construction),
+`pkg/client/connector` (channels and custom transports), and
+`internal/machine/api/proxy` (raw-codec proxy calls). This decision does not
+decide protobuf message representation, descriptor fidelity, transparent
+proxying, or connector retry policy; the latter two consumers therefore retain
+explicit follow-up gates below.
 
 The frozen oracle has four services and 38 RPCs: 34 unary, three server-streaming,
 and one bidirectional-streaming RPC. The service definitions are
@@ -38,11 +42,11 @@ descriptors are a separate concern of the blocked
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | Preserve canonical paths, all oracle streaming shapes, metadata and response headers, status details/trailers, deadlines, cancellation, and custom async transports. | Tonic exposes unary/client-streaming/server-streaming/bidirectional codec paths, generic codecs, metadata-bearing `Request`/`Response`/`Status`, trailers, timeout encoding, custom channel connectors, and custom server incoming IO. A locked executable probe exercised the oracle-required subset. | `pass` |
+| Behavior | Preserve canonical paths, all oracle streaming shapes, metadata and conditional response headers, status details/trailers, deadlines, cancellation, and custom async transports. | Tonic exposes unary/client-streaming/server-streaming/bidirectional codec paths, generic codecs, metadata-bearing `Request`/`Response`/`Status`, trailers, timeout encoding, custom channel connectors, and custom server incoming IO. The corrected locked probe asserts version rejection/success/error ordering and client warning timing as well as the oracle RPC shapes. Tonic documents cancellation by dropping an in-flight future/stream. | `pass` |
 | License and security | Permissive licensing and no known RustSec advisories in the selected closure. | Exact manifests carry MIT or MIT/Apache-2.0-compatible licenses. `cargo audit` against 1,211 RustSec advisories reported zero vulnerabilities for the 66-package locked probe closure on 2026-08-11. | `pass` |
 | Platforms and targets | Build on Linux and macOS, x86_64 and aarch64; make Unix transport behavior explicit. | The exact lockfile passed `cargo check` for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `aarch64-apple-darwin`. Tonic's built-in `unix:` connector is Unix-only; custom connectors remain available for SSH, stdio, and tunnel transports. | `pass` |
 | Maintenance and Rust version | Maintained releases, declared MSRV compatible with the port, credible adoption. | Tonic 0.14.6 was released 2026-05-07, declares Rust 1.88, and has 3,256 crates.io reverse dependents. Tokio 1.53.1 and Tower 0.5.3 declare Rust 1.71 and 1.64 respectively. OpenTelemetry Rust and Linkerd2 Proxy use Tonic in their current manifests. | `pass` |
-| Architectural constraints | Must not force a protobuf runtime while that critical decision is blocked; response-aware metadata logic must fit without generated-Go API imitation. | `tonic::codec::Codec` is generic. `tonic-build::manual` generates service APIs around caller-supplied message types and codec paths; its Prost integration was moved out to `tonic-prost-build`. Tonic interceptors cover request metadata/rejection, while ordinary Tower middleware covers response headers. | `pass` |
+| Architectural constraints | Must not force a protobuf runtime while that critical decision is blocked; response-aware metadata logic must preserve the oracle's ordering and timing without generated-Go API imitation. | `tonic::codec::Codec` is generic. `tonic-build::manual` generates service APIs around caller-supplied message types and codec paths; its Prost integration was moved out to `tonic-prost-build`. A conditional Tower server service and post-decode client wrappers preserve the version semantics described below; an unconditional response layer does not. | `pass` |
 
 ### Primary evidence
 
@@ -56,7 +60,9 @@ descriptors are a separate concern of the blocked
   arbitrary codec path: [library](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic-build/src/lib.rs),
   [manual generator](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic-build/src/manual.rs).
 - The Tonic interceptor contract intentionally receives `Request<()>` and
-  directs response-aware logic to Tower middleware:
+  directs response-aware logic to Tower middleware, but the oracle's conditional
+  response behavior requires a purpose-built service rather than an
+  unconditional response-mutation layer:
   [interceptor source](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/service/interceptor.rs).
   `Status` preserves binary details and custom metadata:
   [status source](https://github.com/grpc/grpc-rust/blob/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/tonic/src/status.rs).
@@ -113,13 +119,34 @@ does not register network reflection. The future package implementation should:
    streaming methods as async streams; dropping the call future/stream is the
    cancellation mechanism, consistent with Tonic's
    [cancellation example](https://github.com/grpc/grpc-rust/tree/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/examples/src/cancellation).
-3. Use a Tonic request interceptor for the two client-version metadata values
-   and server compatibility rejection. Use a Tower `Layer` for response-aware
-   work: injecting `uncloud-server-version` and inspecting response headers on
-   clients. Preserve streaming trailers and `Status` details.
-4. Use `Endpoint::connect_with_connector` and `Server::serve_with_incoming` for
+3. Add both client-version metadata values with a Tonic client request
+   interceptor. On the server, use a conditional Tower `Service` that validates
+   those raw metadata headers before calling the inner service: a rejected call
+   returns `FailedPrecondition` **without** `uncloud-server-version`; after
+   validation succeeds, the service adds the server-version header to the inner
+   HTTP response on both handler success and handler error. An unconditional
+   response-header layer is not equivalent.
+4. Inspect client responses after gRPC decoding, not in a generic HTTP response
+   layer. A unary facade checks the server version only on `Ok(Response<_>)` and
+   never on `Err(Status)`. A natural `VersionedStreaming<T>` stream wrapper
+   retains the initial metadata and exposes an explicit `header()` access that
+   performs the one-time warning; merely creating or consuming the stream must
+   not warn. This preserves the temporary Go `ClientStream.Header()` timing,
+   and no frozen caller invokes that method.
+5. Preserve successful terminal trailers and terminal streaming `Status`
+   details/metadata. The corrected probe covers both cases.
+6. Use `Endpoint::connect_with_connector` and `Server::serve_with_incoming` for
    the existing SSH, stdio, tunnel, and Unix transports. Built-in UDS is not a
    Windows transport; this matches the currently tested target matrix.
+
+Direct-support-crate ownership is intentional: `bytes` backs the chosen custom
+codec and raw status details; `http` names the conditional service's request and
+response types; `tower` supplies `Service`, `Layer`, and connector utilities;
+`hyper-util` adapts Tokio IO for custom connectors; `tokio-stream` adapts
+listeners and channel-backed request streams; and Tokio supplies runtime, IO,
+networking, synchronization, and timers. Implementors may remove a direct
+support dependency only when their crate does not use that surface; they must
+not change the exact selected version transitively.
 
 ### Known limitations and follow-up gates
 
@@ -138,6 +165,17 @@ does not register network reflection. The future package implementation should:
 - **Transparent unknown-service proxying is out of scope.** The frozen proxy
   uses a raw-byte codec and unknown-service handler. Require a separate proxy
   design/probe before `internal/machine/api/proxy` is released.
+- **Server/channel construction has downstream owners.** `internal/machine`
+  must use the conditional version-service ordering above when it constructs
+  the four-service server. `pkg/client/connector` must reuse this exact stack
+  for TCP, Unix, SSH/stdio, and WireGuard channels, but stays gated on the retry
+  decision. These are known consumers even though the current dependency
+  registry lists only the two immediately blocked packages.
+- **Metadata dependency is deduplicated.** `grpc-metadata-interceptor` is not a
+  separate transport/runtime selection: `internal/grpcversion` must implement
+  that behavior with this approved Tonic/Tower stack and the exact timing above.
+  The controller must reconcile that currently unmatched package blocker when
+  integrating records; this researcher does not edit registries.
 - **No transport TLS or compression features are enabled.** Frozen connections
   are insecure gRPC over separately protected/local transports and configure no
   gRPC compression. Add either only in response to a new oracle requirement.
@@ -147,28 +185,57 @@ does not register network reflection. The future package implementation should:
 A disposable exact-version probe generated one unary, one server-streaming, and
 one bidirectional-streaming method with `tonic_build::manual` and a custom byte
 codec. It ran a client and server over `tokio::io::duplex` through a custom
-connector and verified request interceptors, Tower response-header middleware,
-metadata, `Status` details, trailers, and the `grpc-timeout` deadline header.
+connector. Its conditional version service asserted that rejection happens
+before the handler and has no server-version header, while compatibility-passing
+success and handler-error responses both have the header. Client assertions
+covered post-decode unary checks (success only), no warning on unary error or
+stream creation, and one-time warning only on explicit stream-header access. It
+also verified unary and terminal-stream status details/metadata, terminal
+success trailers, and `grpc-timeout` header encoding.
 
 ```text
-tonic probe passed: custom codec, custom connector, unary/server/bidi streaming,
-request/response middleware, status details, metadata, trailers, and deadline header
+tonic probe passed: conditional version middleware, post-decode unary checks,
+explicit stream-header timing, custom codec/connector, RPC shapes, unary and
+terminal-stream status details/metadata, success trailers, and deadline header
 ```
 
-The locked 66-package graph passed `cargo run --locked`, `cargo audit`, and
-`cargo check --locked` on the four targets named in the hard-gate table using
-Rust 1.96.0. The selected stack's effective MSRV is Tonic's declared Rust 1.88.
+The probe encodes but does not expire a deadline, and it does not claim to have
+observed remote cancellation. Those behaviors rely on Tonic's exact-release
+request documentation and cancellation example cited above and require
+package-level parity tests with real handlers. The locked 66-package graph
+passed `cargo run --locked`, `cargo audit`, and `cargo check --locked` on the
+four targets named in the hard-gate table using Rust 1.96.0. The selected
+stack's effective MSRV is Tonic's declared Rust 1.88.
 
 ## Review
 
-Fresh adversarial review is required because this is a critical networking
-capability. The review is pending an available isolated agent slot. Approval is
-forbidden until the reviewer independently challenges the candidate set,
-protobuf boundary, interceptor semantics, retry/proxy exclusions, features,
-platforms, licenses/security, adoption, maintenance, and MSRV, and all findings
-are resolved here.
+Fresh adversarial reviewer
+`/root/async_grpc_research/async_grpc_fresh_adversarial_review` reviewed exact
+candidate commit `9f456597e18466ad33fc4d73b0a221492a03f004` and returned `FINDINGS`:
 
-Affected package packets/registry entries:
+1. Generic response middleware did not preserve conditional server-header,
+   unary-success-only warning, or explicit streaming-header timing. Fixed with
+   the precise server/client design and corrected probe above.
+2. The record omitted direct downstream server, channel, and raw-proxy
+   consumers. Fixed by separating immediately blocked packages from all known
+   consumers and retaining the retry/proxy gates.
+3. The verification description overstated deadline, cancellation, and trailer
+   coverage. Fixed by adding asserted success trailers and terminal stream
+   status details/metadata, and explicitly narrowing deadline/cancellation
+   claims.
+
+A newly named fresh-context re-review of the corrected commit is still required
+before approval.
+
+Immediately blocked package registry entries:
 
 - `internal/machine/api/pb`
 - `internal/grpcversion`
+
+Known downstream consumers/follow-up gates:
+
+- `internal/machine` — ordinary server construction uses this stack; its
+  transparent server path remains proxy-gated.
+- `pkg/client/connector` — channel/custom-transport construction uses this
+  stack; it remains retry-gated.
+- `internal/machine/api/proxy` — raw-codec client behavior remains proxy-gated.
