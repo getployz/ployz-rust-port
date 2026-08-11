@@ -227,8 +227,13 @@ cargo audit --no-fetch --deny warnings
 Initial exact-commit adversarial review rejected `cced1dfc97fff3a78247a7e354fae7400cdcbd0c`
 because it incorrectly excluded the live arbitrary current-version versus
 client-minimum comparison. The integration policy and 20,736-pair differential
-were corrected to preserve that path and its comparator flaws. Fresh review of
-the corrected exact commit is pending.
+were corrected to preserve that path and its comparator flaws.
+
+Fresh adversarial re-review accepted exact corrected commit
+`2eb9baf72be50c72c3010ce747473248ae54ba51` with no findings. It independently
+validated both zero-padding directions, numeric overflow/lexical behavior,
+build-insensitive comparison, parsing/display compatibility, exact dependency
+configuration, hard gates, and owned-file scope.
 
 Affected package: `upstream/uncloud/internal/grpcversion`. No package packet was
 present at research time. The existing stable-only `pkg/client/caddy.go` use is
