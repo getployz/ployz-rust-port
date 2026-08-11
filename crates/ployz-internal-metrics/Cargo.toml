@@ -1,0 +1,13 @@
+[package]
+name = "ployz-internal-metrics"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+prometheus = { version = "=0.14.0", default-features = false, features = ["protobuf"] }
+
+# Keep this migration crate independently testable until the integrator adds it
+# to the repository workspace.
+[workspace]
