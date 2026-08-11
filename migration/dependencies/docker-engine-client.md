@@ -8,14 +8,15 @@
 | License | `Apache-2.0` |
 | Research date | `2026-08-11` UTC |
 | Request | No request file was present; capability was delegated directly for `upstream/uncloud/internal/docker` |
-| Exact blocker | Container control requires a fresh adversarial dependency reviewer. Two attempts to allocate one failed because the agent-thread limit was reached. The controller must obtain that review before changing this record to `approved`. |
+| Exact blocker | A fresh adversarial review of commit `89bddf3` returned **REJECT**. Approval is blocked on D01-D05: explicit human authority for plain TCP/unverified-TLS environment parity; proof of lazy construction and daemon-start retry despite Bollard's socket-existence check; native exact-feature/exact-lock evidence on shipped macOS amd64/arm64 and Linux arm64; a declared Docker Engine/API support floor with corrected-modifier operation tests; and pull/push cancellation proofs showing connection closure and no orphan progress. |
 
 ## Verdict
 
-`bollard` 0.21.0 is the clear idiomatic and adoption leader and is the only
-candidate that passes the required Engine API surface without local protocol
-reimplementation. It is the provisional selection, subject to the mandatory
-fresh adversarial review above.
+`bollard` 0.21.0 remains the clear idiomatic and adoption leader and the only
+candidate that covers the required Engine API surface without local protocol
+reimplementation. It remains the provisional selection, but the completed
+fresh adversarial review rejected approval until D01-D05 below are closed and
+a fresh re-review accepts the evidence.
 
 Approval must retain all integration requirements in this record. In
 particular, Bollard's documented `negotiate_version` mutates its stored client
@@ -111,12 +112,12 @@ probe observed `/version` followed by `/v1.41/_ping`,
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | Typed container/image/network/info operations; missing-image status classification; streaming pull/push progress and stream errors; platform-aware push; cancellation; API compatibility | Public APIs cover the required surface. A Rust 1.96 loopback probe verified negotiated downgrade state, required version-prefix correction, streamed pull/push objects, platform encoding, an encoded empty `X-Registry-Auth` header for push, and a typed 404 with exact daemon message. Dropping a future/stream is Tokio cancellation; dropping the response closes the Engine request, which Docker documents as cancelling pull/push. | `pass`, only with the mandatory integration policy below |
-| License and security | Apache-2.0-compatible permissive graph; no known vulnerability; safe local socket and verified mutual-TLS modes | Direct license is Apache-2.0. All 120 external packages in the exact all-target probe graph used Apache/MIT/ISC/BSD/Unicode/Unlicense/Zlib-family compatible terms. RustSec found no vulnerability or warning in the exact lock. No package-owned `unsafe` or raw socket FFI is needed; Ring and platform certificate/socket crates encapsulate their native/unsafe internals. Docker warns that daemon access is effectively host-root access, so endpoints remain trusted configuration. | `pass`; insecure remote HTTP/TLS must not be broadened |
-| Platforms and targets | Shipped Linux/macOS amd64/arm64, Unix-socket local daemon, configured TCP/mTLS | Linux x86_64 Rust 1.96 run/check passed. `pipe`'s Unix connector is target-gated portable Tokio/hyperlocal code; `ssl` uses rustls and native roots. The Linux-to-Intel-macOS check reached Ring's C compilation and failed only because no Apple target C compiler/SDK is installed, not because of a Rust dependency error. Bollard has first-party Linux/Windows transport integration CI; native macOS amd64/arm64 remains package acceptance evidence. | `pass` for dependency design; native macOS acceptance still required |
+| Behavior | Typed container/image/network/info operations; missing-image status classification; streaming pull/push progress and stream errors; platform-aware push; cancellation; API compatibility | Public APIs cover the required surface. A Rust 1.96 loopback probe verified negotiated downgrade state, required version-prefix correction, streamed pull/push objects, platform encoding, an encoded empty `X-Registry-Auth` header for push, and a typed 404 with exact daemon message. It did not prove lazy daemon-start construction/retry, a declared oldest supported Engine/API, the complete caller operation surface at that floor, or transport-level pull/push cancellation. | **`blocked`: D02, D04, D05** |
+| License and security | Apache-2.0-compatible permissive graph; no known vulnerability; safe local socket and verified mutual-TLS modes | Direct license is Apache-2.0. All 120 external packages in the exact all-target probe graph used Apache/MIT/ISC/BSD/Unicode/Unlicense/Zlib-family compatible terms. RustSec found no vulnerability or warning in the exact lock. No package-owned `unsafe` or raw socket FFI is needed; Ring and platform certificate/socket crates encapsulate their native/unsafe internals. Docker warns that daemon access is effectively host-root access, so endpoints remain trusted configuration. The frozen environment behavior can select plain TCP or unverified TLS, while this record intentionally permits only local sockets or verified TLS. | **`blocked`: D01 requires human authority** |
+| Platforms and targets | Shipped Linux/macOS amd64/arm64, Unix-socket local daemon, configured TCP/mTLS | Linux x86_64 Rust 1.96 run/check passed. `pipe`'s Unix connector is target-gated portable Tokio/hyperlocal code; `ssl` uses rustls and native roots. The Linux-to-Intel-macOS check reached Ring's C compilation and failed because no Apple target C compiler/SDK is installed. Bollard has first-party Linux/Windows transport integration CI, but neither cross-compilation nor upstream CI proves the shipped native targets under this exact feature set and lock. | **`blocked`: D03** |
 | Maintenance and Rust version | Active current release compatible with workspace Rust 1.96 | 0.21.0 was current and non-yanked; repository activity continued on the research date. The crate declares no `rust-version`, but the exact graph built, ran, and passed warnings-denied Clippy with Rust 1.96.0. | `pass` |
 | Architectural constraints | Idiomatic async API; no subprocess or bespoke Docker REST implementation; bounded build/runtime surface | Bollard uses Tokio/futures streams and generated Engine models directly. Exact features exclude BuildKit, SSH, WebSocket, chrono/time, and code generation at consumer build time. The focused all-target lock contains 120 external packages, largely the already-idiomatic Tokio/Hyper/Rustls stack. | `pass` |
-| Critical review | Fresh adversarial review for container control | Two allocation attempts returned `agent thread limit reached`; no independent reviewer result exists. | **`fail` until fresh review** |
+| Critical review | Fresh adversarial review for container control | A fresh adversarial review of commit `89bddf3` completed and returned **REJECT**, identifying D01-D05 below. | **`fail`: D01-D05 must close, then be re-reviewed** |
 
 ## Candidate comparison
 
@@ -131,9 +132,85 @@ Counts are official crates.io snapshots from 2026-08-11.
 | [`bollard-next` 0.18.1](https://crates.io/crates/bollard-next/0.18.1) | A temporary alternate publication of the same design, pinned to older Engine 1.45 stubs and lacking current upstream improvements. | 99,923 total / 2,819 recent downloads; 7 reverse dependents; last release 2024-10-19 versus active mainline Bollard 0.21.0. | Rejected: obsolete, much less adopted duplicate of the selected project. |
 | Direct Docker REST implementation | Could reproduce only the currently used endpoints. | No ecosystem maintenance, schema generation, cross-platform connector, or security review; would duplicate status, streaming, versioning, TLS, and transport logic already maintained by Bollard. | Rejected by architectural gate. |
 
+## Adversarial rejection gates
+
+The review findings below are blocking evidence requirements, not evidence that
+has already been obtained. Closing them requires updating this record with
+reproducible artifacts and then obtaining a fresh adversarial re-review.
+
+### D01 — Human authority for environment and transport parity
+
+The frozen Go `FromEnv` behavior permits both plain remote TCP and TLS with
+server verification disabled when `DOCKER_CERT_PATH` is set but
+`DOCKER_TLS_VERIFY` is empty. The provisional Bollard policy intentionally
+supports the local Unix socket and verified TLS only. A controller or other
+human authority must provide an explicit supported-environment matrix stating
+whether plain TCP and unverified-TLS parity is required or explicitly
+unsupported. If unverified TLS is required, this selection fails the security
+gate and becomes `human-decision-required`; it must not be approved by silently
+adding a permissive certificate verifier. The matrix must also settle whether
+trusted plain TCP, if any, is limited to loopback or another precisely bounded
+environment.
+
+### D02 — Lazy construction and daemon-start retry
+
+Bollard 0.21.0's Unix constructor checks that the socket path exists and can
+return `SocketNotFoundError` before any Engine request is made. The port must
+prove that client construction cannot turn a daemon that has not started yet
+into a permanent pre-retry failure. Acceptable evidence is an executable design
+that constructs lazily or reconstructs inside the retry loop, with tests for:
+
+- a missing socket at startup that subsequently appears;
+- connection refusal followed by daemon readiness;
+- cancellation returning the oracle-equivalent result;
+- non-connect errors remaining permanent; and
+- the exact bounded 100 ms-to-1 s backoff without a busy loop.
+
+The existing loopback API probe did not exercise these cases.
+
+### D03 — Native shipped-platform evidence
+
+Provide native, exact-feature and exact-lock evidence for macOS amd64, macOS
+arm64, and Linux arm64. For each target, preserve the host OS/architecture,
+Rust toolchain, dependency line, and lockfile identity, and run build/check plus
+warnings-denied Clippy. Runtime evidence must cover Docker Desktop's Unix socket
+on both macOS architectures, the Unix socket on Linux arm64, and verified TLS
+where that transport is shipped. Linux-to-macOS cross-compilation and Bollard's
+upstream Windows CI do not close this gate.
+
+### D04 — Declared Docker Engine/API support floor
+
+A controller or human authority must declare the oldest Docker Engine and API
+version that Ployz supports. Against that floor, test the caller-required
+operations through the corrected request modifier: ping/version, container
+create/inspect/start/remove, image pull/push/inspect/tag/remove including auth
+and OCI platform selection, daemon info, and the network/event/log surfaces
+used by downstream machine code. The transcript must prove that `/version` is
+unprefixed and every subsequent operation uses `/v{selected}/...`; it must also
+cover `DOCKER_API_VERSION` override precedence and old-daemon/fallback behavior.
+The installed CLI version and the current fake Engine do not establish a
+support floor.
+
+### D05 — Pull and push cancellation
+
+Run separate slow pull and slow push probes, using a controllable fake Engine
+or a live daemon where the transport can be observed. Cancel after response
+headers and at least one progress item, then prove all of the following:
+
+- the TCP or Unix connection closes promptly, observed as server EOF/reset;
+- the producer/forwarder task terminates and its output channel closes exactly
+  once;
+- no progress arrives after cancellation and no task remains orphaned; and
+- cancellation racing stream error and normal completion has deterministic,
+  oracle-compatible results.
+
+The current policy to drop the stream and never detach its forwarding task is
+necessary, but it is not transport-level cancellation evidence and does not
+close this gate.
+
 ## Selected integration
 
-After the required reviewer is clean, use exactly:
+If D01-D05 are closed and a fresh re-review accepts the evidence, use exactly:
 
 ```toml
 bollard = { version = "=0.21.0", default-features = false, features = ["pipe", "ssl"] }
@@ -249,8 +326,8 @@ credential-helper executable or a hand-written credential-store protocol.
   toolchain check.
 - The selected `ssl` feature uses Ring and therefore a C/assembly build script.
   Native Linux passed. Linux-to-macOS cross-checking failed because this VM has
-  no Apple target compiler/SDK; native macOS amd64/arm64 build and Docker Desktop
-  socket/TLS checks remain acceptance requirements.
+  no Apple target compiler/SDK; native macOS amd64/arm64 and Linux arm64
+  exact-feature/exact-lock build and runtime checks remain required by D03.
 - The dependency's default request-header timeout is 120 seconds. It does not
   cover continued streaming after headers arrive, but package code must still
   own every oracle deadline and cancellation boundary.
@@ -306,10 +383,15 @@ executable and required no Docker daemon.
 
 ## Review
 
-This is critical container-control functionality and cannot be approved without
-a fresh adversarial dependency reviewer. Allocation was attempted twice during
-research; both attempts failed with `agent thread limit reached`. No review
-result is available, and the selected dependency remains provisional.
+This is critical container-control functionality. A fresh adversarial review of
+commit `89bddf3` completed and returned **REJECT**. Its exact blocking findings
+are D01-D05 above: unresolved human authority for insecure-environment parity,
+no lazy-construction/daemon-start retry proof, missing native shipped-platform
+evidence, no declared and exercised Engine/API support floor, and no
+transport-level pull/push cancellation proof. The prior research evidence and
+provisional Bollard selection remain valid inputs, but they do not override the
+rejection. Only documented closure of every finding followed by a fresh clean
+re-review can move this record to `approved`.
 
 Affected package: `upstream/uncloud/internal/docker` / future
 `crates/ployz-internal-docker`. Direct dependents that informed the decision are
