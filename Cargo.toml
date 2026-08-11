@@ -5,6 +5,7 @@ members = [
     "crates/ployz-internal-cli-config",
     "crates/ployz-internal-machine-constants",
     "crates/ployz-internal-machine-network",
+    "crates/ployz-internal-machine-osinfo",
     "crates/ployz-scripts",
 ]
 
