@@ -2,39 +2,35 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required`. Released macOS `uc` observably calls native `os/user.Current()` on the `machine add ssh+go://host` path when no user is supplied, requiring Open Directory-capable target OS ABI access. Canonical cgo-enabled Linux development builds additionally expose glibc NSS. Policy makes unsafe FFI reviewable but does not define whether the “pure Rust” objective permits package-owned OS ABI calls or authorize changing these behaviors. |
+| Status | `blocked`. Target-only `libc 0.2.189` is the leading native account candidate and package-owned unsafe FFI is reviewable under repository policy, not prohibited. Linux native execution and both macOS cross-checks pass, but no native macOS amd64/arm64 environment is available to verify `getpwuid_r`/Open Directory behavior. The critical native dependency cannot pass its platform gate without that runtime evidence and fresh exact review. |
 | Capability | Resolve a user name to UID and primary GID, resolve a group name to GID, preserve the shipped account source and errors, and change pathname ownership while independently leaving either ID unchanged. |
-| Selected dependency and exact version | No complete selection. For cgo-free Linux only, conditionally approve `rustix = "=1.1.4"` with `default-features = false` and features `std,process`, plus a project-owned safe parser and Rust 1.96 `std::os::unix::fs::chown`. For macOS native `Current()`, target-only `libc = "=0.2.189"` is the leading unapproved candidate. |
-| Required configuration | Decide whether direct target OS ABI calls from Rust are allowed and whether host-dependent `mise`/ordinary development behavior is supported. A files profile must forbid rustix's `use-libc` feature and `--cfg rustix_use_libc`; every native profile needs separate critical review and an explicit target/artifact mapping. |
+| Selected dependency and exact version | Complete selection is blocked. Cgo-free Linux conditional selection: `rustix = "=1.1.4"` with `default-features = false`, features `std,process`, project safe parser, and Rust 1.96 `std::os::unix::fs::chown`. Native conditional candidate: target/profile-scoped `libc = "=0.2.189"` with a project safe wrapper. |
+| Required configuration | Preserve every non-experimental build row. Define explicit files/native Cargo profiles: Linux release/Docker uses files; macOS always uses native; canonical/ordinary cgo-enabled Linux development uses native. Never choose by ambient linkage. Files must forbid rustix `use-libc` and `rustix_use_libc`; native libc remains gated on macOS runtime evidence and a second fresh critical review. |
 | License | Conditional rustix selection: `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`; project parser and Rust standard library otherwise. No native-NSS dependency is approved. |
 | Research date | `2026-08-11` UTC |
 | Research base | `c943d3e84914ae24fcce4cc2a19f92c5c04599bf` |
 | Supersedes | The provisional Linux/macOS FFI split recorded through `0e7cf39c0a2768c0966f100fef3a01084f7ac025`. Package compilation alone did not prove `internal/fs` lookup reachability, but subsequent caller tracing proves a separate shipped `sshexec` path reaches native macOS `Current()`. |
-| Request | Direct controller delegation for `upstream/uncloud/internal/fs` and the newly discovered consumer `upstream/uncloud/internal/sshexec` / future `crates/ployz-internal-fs` and `crates/ployz-internal-sshexec`. |
+| Request | Direct controller delegation for `upstream/uncloud/internal/fs` and discovered direct consumers `upstream/uncloud/internal/sshexec` and `upstream/uncloud/internal/machine` / their future Rust crates. |
 
-## Decision required
+## Blocked decision
 
-The controller/user must first decide whether narrow, target-specific OS ABI
-calls from Rust are compatible with this port's “pure Rust” objective. This is
-not optional platform cleanup: a released macOS CLI path reaches the native
-account database today.
+Continue with a narrow target/profile-specific libc boundary; repository policy
+already defines unsafe FFI as a critical capability subject to research and a
+second fresh adversarial reviewer. No additional permission question is
+invented here.
 
-After that authority decision, record the supported-build contract:
+The remaining hard blocker is unavailable native macOS runtime evidence.
+Cross-checks prove libc exposes the required symbols and layouts for both Apple
+targets, but cannot prove actual Open Directory records, returned status/result
+pointers, or both architectures' runtime behavior. Provide a native macOS
+amd64 and arm64 runner (or equivalent trusted CI that can execute the recorded
+probe), then rerun the probe and critical review. Until that passes, do not
+approve libc or unblock any waiting crate.
 
-1. **If OS ABI calls are allowed**, re-open target-only `libc 0.2.189` as the
-   leading macOS `getpwuid_r` candidate and require native macOS amd64/arm64
-   probes plus a second fresh critical-dependency review. If cgo-enabled Linux
-   development builds remain supported, extend the reviewed native profile to
-   glibc NSS and define an explicit Cargo feature/profile-to-artifact mapping.
-2. **If OS ABI calls are forbidden**, no evaluated pure-Rust candidate
-   preserves the released macOS Open Directory behavior. Unblocking requires
-   either a newly demonstrated pure-Rust native backend or explicit authority
-   to change/exclude that observable `uc machine add ssh+go://host` behavior.
-   Files parsing on macOS is not parity.
-
-The current migration contract preserves frozen observable behavior and only
-excludes `upstream/uncloud/experiment/**`. It neither grants OS-ABI authority
-nor excludes canonical development builds or the released SSH command path.
+All non-experimental observable rows remain in scope. The eventual build
+mapping must preserve files-only Linux releases, native macOS releases, and
+native NSS in cgo-enabled canonical/ordinary Linux development builds. There is
+no option in this record to discard one of those contracts.
 
 For the cgo-free profile, conditionally approve this exact design:
 
@@ -63,9 +59,10 @@ observable and must not be replaced by `$USER` or `/etc/passwd`.
   and token/client helpers, but it never constructs the daemon `Machine` or
   calls the `internal/fs` account/ownership entry points.
 - The CLI nevertheless reaches account resolution through a different package:
-  [`cmd/uc/machine/add.go`](../../upstream/uncloud/cmd/uc/machine/add.go) accepts
-  `ssh+go://host`; `SSHDestination.Parse` preserves its omitted user;
-  `provisionOrConnectRemoteMachine` calls
+  both [`machine/add.go`](../../upstream/uncloud/cmd/uc/machine/add.go) and
+  [`machine/init.go`](../../upstream/uncloud/cmd/uc/machine/init.go) accept
+  `ssh+go://host`; `SSHDestination.Parse` preserves its omitted user; their
+  add/init flows reach `provisionOrConnectRemoteMachine`, which calls
   [`sshexec.Connect`](../../upstream/uncloud/internal/sshexec/ssh.go), which
   calls `os/user.Current()` when the user is empty and uses the returned
   username for both SSH attempts. It ignores a `Current()` error, leaving the
@@ -78,6 +75,11 @@ observable and must not be replaced by `$USER` or `/etc/passwd`.
   [`caddyconfig/controller.go`](../../upstream/uncloud/internal/machine/caddyconfig/controller.go).
   `internal/daemon/daemon.go` is the only production constructor of
   `machine.NewMachine`; `cmd/uncloudd` owns that daemon path.
+- [`internal/machine/machine.go`](../../upstream/uncloud/internal/machine/machine.go)
+  also directly calls `os/user.LookupGroup("uncloud")` while creating its API
+  Unix socket. Typed unknown-group falls back to root GID 0; every other lookup
+  failure aborts. A found textual GID is parsed as Go `int`, the socket parent
+  is chowned with unchanged UID, and that GID is supplied to socket creation.
 - [`.goreleaser.yaml`](../../upstream/uncloud/.goreleaser.yaml) builds
   `uncloudd` only for Linux amd64/arm64 and explicitly sets `CGO_ENABLED=0`.
   [`Dockerfile`](../../upstream/uncloud/Dockerfile) independently sets
@@ -109,6 +111,13 @@ observable and must not be replaced by `$USER` or `/etc/passwd`.
   [published manifest](https://docs.rs/crate/rustix/1.1.4/source/Cargo.toml.orig)
   selects the raw Linux backend by default on the required x86_64/aarch64
   targets and makes libc opt-in through `use-libc`/`rustix_use_libc`.
+- libc 0.2.189's published
+  [`getpwuid_r`](https://docs.rs/libc/0.2.189/libc/fn.getpwuid_r.html),
+  [`getpwnam_r`](https://docs.rs/libc/0.2.189/libc/fn.getpwnam_r.html), and
+  [`getgrnam_r`](https://docs.rs/libc/0.2.189/libc/fn.getgrnam_r.html) bindings
+  expose the exact target ABI without imposing a higher-level cache or error
+  model. The [Rust project crate](https://crates.io/crates/libc/0.2.189) is the
+  current maximum stable release, not the separate 1.0 alpha line.
 
 ## Exact target and build matrix
 
@@ -116,13 +125,14 @@ observable and must not be replaced by `$USER` or `/etc/passwd`.
 | --- | --- | --- | --- |
 | GoReleaser `uncloudd` | Linux amd64/arm64 | Explicit `CGO_ENABLED=0`; fixed files, including cached-current shortcut/fallback | Conditional cgo-free profile: rustix IDs, safe Rust files parser, `std::chown`. |
 | Docker `uncloudd` | Linux amd64/arm64 in Alpine | Explicit `CGO_ENABLED=0`; container files, including cached-current shortcut/fallback | Same conditional cgo-free profile. |
-| GoReleaser Linux `uc` | Linux amd64/arm64 | `CGO_ENABLED=0`; empty-user `ssh+go` reaches cached cgo-free `Current()` (files then environment fallback) | Conditional cgo-free profile is required for this CLI path. It does not reach group lookup or chown. |
-| GoReleaser macOS `uc` | macOS amd64/arm64 | Explicit `CGO_ENABLED=1`; empty-user `ssh+go` reaches cached native `Current()` through `getpwuid_r`/Open Directory | **Human decision required:** exact native backend needs permitted OS ABI access and native evidence. Files/environment-only behavior is wrong. |
-| `mise` `build:uncloudd-*` | Linux amd64/arm64 | Host-dependent because the task does not set CGO. On this Linux/amd64 host, amd64 was native glibc NSS and arm64 cross-build was files-only. | **Unresolved:** canonical repository build, so it cannot be excluded without explicit authority. |
-| Ordinary development `go run` / `go build` | Host target | Native on cgo-enabled Linux and Darwin | **Unresolved:** current port rules do not exclude ordinary supported development behavior. |
+| GoReleaser Linux `uc` | Linux amd64/arm64 | `CGO_ENABLED=0`; empty-user `ssh+go` in both machine add/init reaches cached cgo-free `Current()` (files then environment fallback) | Conditional cgo-free profile is required for these CLI paths. They do not reach group lookup or chown. |
+| GoReleaser macOS `uc` | macOS amd64/arm64 | Explicit `CGO_ENABLED=1`; empty-user `ssh+go` in machine add/init reaches cached native `Current()` through `getpwuid_r`/Open Directory | Native profile required. libc candidate remains blocked only on native macOS runtime evidence/review. Files/environment-only behavior is wrong. |
+| `mise` `build:uncloudd-*` | Linux amd64/arm64 | Host-dependent because the task does not set CGO. On this Linux/amd64 host, amd64 was native glibc NSS and arm64 cross-build was files-only. | Preserve the resolved Go backend with an explicit Rust build feature/profile; do not infer it from linkage. Native libc on cgo-equivalent builds, files otherwise. |
+| Ordinary development `go run` / `go build` | Host target | Native on cgo-enabled Linux and Darwin; files on cgo-free non-Darwin Unix | Preserve with the corresponding explicit native/files Rust configuration. |
 
 The last two rows prevent ambient linkage from silently changing the Rust
-design. Their inclusion is the reason this decision remains gated.
+design. The controller/integrator must encode the equivalent build choice;
+worker crates may not invent root features or release commands.
 
 ## Required Linux files-backend contract
 
@@ -267,15 +277,43 @@ buffer ownership, integer conversions, and C-string copying behind a safe Rust
 API. Native macOS amd64 and arm64 runtime probes are mandatory; cross-checking
 cannot establish Open Directory behavior.
 
+## Required cgo-enabled Linux native contract
+
+When the explicit build profile corresponds to cgo-enabled Go, use glibc NSS;
+do not reuse the files parser. Native `Current()` uses the same `getpwuid_r`
+algorithm and shared process-global cache as macOS. `Lookup(name)` checks that
+cache first and returns it on an exact username match; otherwise it calls
+`getpwnam_r`. `LookupGroup(name)` calls `getgrnam_r` without a current-user
+shortcut.
+
+For both name functions:
+
+- copy the complete requested Go/Rust byte string into a zero-filled buffer
+  one byte longer, so embedded NUL truncates the native query at its first NUL;
+- use `_SC_GETPW_R_SIZE_MAX` or `_SC_GETGR_R_SIZE_MAX`, the 1,024 fallback,
+  `ERANGE` doubling, and the same 1-MiB ceiling;
+- map `ENOENT` and success-with-null-result to the typed unknown-name error for
+  the *original untruncated* requested value; retain other errno with user/group
+  operation context; and
+- copy a returned user as unsigned-decimal UID/GID plus username, comma-trimmed
+  GECOS, and home; copy a group as name plus decimal GID.
+
+The direct `internal/machine` group consumer must preserve its own branch:
+typed unknown `uncloud` group logs/falls back to GID 0, any other native error
+aborts, a found GID is parsed as signed 64-bit Go `int`, then the parent path is
+chowned with unchanged UID and the same GID is passed to Unix socket creation.
+This direct caller and `internal/fs` must use the same native group primitive;
+do not create subtly different error mappings.
+
 ## Candidate comparison
 
 | Candidate | Behavior fit | Decision |
 | --- | --- | --- |
 | `rustix = "=1.1.4"` (`default-features = false`, `std,process`) + project files parser + `std::chown` | Safe real-UID/GID calls plus the exact cgo-free files/current contract. On Linux x86_64/aarch64 rustix defaults to its raw backend, independent of glibc/musl. | **Conditionally selected for the cgo-free profile.** Forbid `use-libc` and `rustix_use_libc`; audit final feature unification. |
 | Project-owned files parser + `std::chown` without an ID source | Cannot implement Go's current-user fallback because Rust `std` exposes no real UID/GID query. | Reject as incomplete. |
-| Target-only `libc = "=0.2.189"` with a narrow safe wrapper | Closest match for released macOS `getpwuid_r`/Open Directory `Current()` and potentially a separately profiled cgo-enabled Linux backend. It introduces package-owned unsafe C ABI calls and must not leak into cgo-free Linux. | **Leading unapproved native candidate.** Requires explicit OS-ABI authority, native target probes, exact safety/error evidence, and a second fresh critical review. |
+| Target/profile-only `libc = "=0.2.189"` (`default-features = false`) with a narrow safe wrapper | Exact symbols/types compile for Linux and both Apple targets; native Linux fields match Go. It is the standard low-level Rust OS-ABI crate and can preserve macOS Open Directory plus cgo-enabled glibc NSS without leaking into files-only builds. | **Conditional native candidate.** Policy permits review, but native macOS amd64/arm64 probes and a second clean critical review are still required. |
 | `objc2-open-directory = "=0.3.2"` | Reaches Open Directory through a broader generated Objective-C/framework FFI surface, with a different query/error/string model from `getpwuid_r`. | Reject at behavior and integration-cost gates. |
-| `nix = "=0.31.3"`, `users = "=0.11.0"`, `uzers = "=0.12.2"`, `pwd = "=1.4.0"`, `etc-passwd = "=0.2.2"` | Wrap native libc lookup but alter or hide the exact bounded-ERANGE/error/result-pointer contract; if shared, also make cgo-free Linux native by accident. | Reject for this exact boundary; direct target-only libc is smaller and more controllable if authorized. |
+| `nix = "=0.31.3"`, `users = "=0.11.0"`, `uzers = "=0.12.2"`, `pwd = "=1.4.0"`, `etc-passwd = "=0.2.2"` | Wrap native libc lookup but alter or hide the exact bounded-ERANGE/error/result-pointer contract; if shared, also make cgo-free Linux native by accident. | Reject for this exact boundary; direct target/profile-only libc is smaller and more controllable once its remaining gates pass. |
 | General passwd/group parser crate | None evaluated preserves Go's Unicode trimming, invalid UTF-8, malformed-duplicate, signed-ID, streaming, late-I/O-error, and no-line-cap behavior. Adapting one is larger than the domain parser. | Reject at behavior and integration-cost gates. |
 | Spawn `getent`, `id`, or platform tools | Adds executable discovery, environment, process, parsing, timeout, and cancellation behavior; native NSS is wrong for releases. | Reject at behavior and architecture gates. |
 
@@ -283,25 +321,26 @@ cannot establish Open Directory behavior.
 
 | Gate | Evidence | Result |
 | --- | --- | --- |
-| Required behavior | The cgo-free contract is specified, including the `Current()` shortcut/cache/fallback. Released macOS `uc` needs native `Current()`; canonical `mise` and ordinary cgo-enabled Linux builds expose native NSS. No authority permits changing or excluding them. | `human-decision-required` |
-| License and security | Conditional rustix has the stated permissive licenses, safe public ID APIs, and no RustSec findings in the exact probe lockfile. Root-controlled files do not erase malformed-record/large-prefix risks. Leading libc is permissively licensed but its unsafe boundary and native attack surface remain unreviewed. | `conditional pass` for cgo-free; incomplete native |
+| Required behavior | Cgo-free and native contracts are specified, including cache/fallback, native name/group queries, both SSH CLI callers, and machine's group fallback. Released macOS `uc` still lacks runtime differential evidence. | `blocked` on native macOS evidence |
+| License and security | Conditional rustix has the stated permissive licenses and safe ID APIs. libc 0.2.189 is MIT OR Apache-2.0; the exact isolated locks have no local RustSec finding. The probe demonstrates a narrow documented unsafe boundary, but final wrapper code still needs critical safety review. | `conditional pass`; final critical review pending |
 | Platforms and targets | Conditional rustix/files code checked on Linux x86_64 and aarch64 targets and is GNU/musl independent when raw backend selection is enforced. No native macOS amd64/arm64 Open Directory probe exists, and arm64 Linux runtime remains package/release acceptance. | `fail` for complete matrix |
-| Maintenance and Rust version | rustix 1.1.4 is Bytecode Alliance maintained, MSRV 1.63, and already exists transitively in this workspace; Rust 1.96 exceeds its MSRV. crates.io reported 1.02B total and 234M recent downloads on the research date, supporting its idiomatic/adopted status. `std::chown` is stable since 1.73. | `pass` |
-| Architectural constraints | Cgo-free profile is synchronous, has only the oracle-required process-global cache, and adds no runtime/process/service. Released macOS parity requires an OS boundary; whether package-owned FFI is allowed remains unresolved. | `human-decision-required` |
+| Maintenance and Rust version | rustix 1.1.4 is Bytecode Alliance maintained, MSRV 1.63, and already exists transitively. crates.io reported 1.02B total/234M recent downloads. libc 0.2.189 is the current maximum stable release, Rust project maintained, MSRV 1.65, already locked exactly here, with 1.468B total/320M recent downloads. Rust 1.96 exceeds both MSRVs; `std::chown` is stable since 1.73. | `pass` |
+| Architectural constraints | Explicit profiles prevent native linkage from contaminating files-only artifacts. Both paths are synchronous and share only the oracle-required cache; no runtime/process/service is added. Unsafe is isolated behind one safe native wrapper as required by policy. | `conditional pass`; native runtime review pending |
 
 ## Conditional Cargo configuration
 
-If release-artifact scope is explicitly authorized, add the following exact
-direct dependency centrally; it is already present transitively in the current
-workspace lockfile:
+After all hard gates pass, add exact dependencies centrally. Both versions are
+already present in the current workspace lockfile:
 
 ```toml
 rustix = { version = "=1.1.4", default-features = false, features = ["std", "process"] }
+libc = { version = "=0.2.189", default-features = false }
 ```
 
 The final workspace feature tree must contain neither rustix `use-libc` nor an
-external `--cfg rustix_use_libc`. This record does not authorize libc, a native
-NSS/Open Directory backend, an account parser, or a subprocess dependency.
+external `--cfg rustix_use_libc`. The libc line is **not yet approved**; it is
+shown to make the gated configuration exact. No parser or subprocess crate is
+authorized.
 
 ## Executable verification
 
@@ -340,6 +379,31 @@ eight-package lockfile against 1,211 locally available advisories with no
 finding. These results qualify only the conditional cgo-free selection; they
 do not resolve native-NSS scope.
 
+A second isolated Rust 1.96 probe pinned libc 0.2.189 with default features
+disabled and implemented the bounded `getpwuid_r` loop behind a safe API. Its
+manifest, lockfile, and source SHA-256 values were respectively
+`da887c0592f88fb4c43d2d53f13070dc37992a41f67f839dce517033e622ccfa`,
+`e91a5780dd95489e126edadc98c8592350656085e08c1c3eff77fbff36e2f9bf`,
+and `cf451eed73ca71005099f1c2d0a34f1e3f6e63c1bb71dcff281d204c9b4a62d7`.
+These commands passed:
+
+```text
+cargo fmt --all --check
+cargo check --locked --all-targets
+cargo clippy --locked --all-targets -- -D warnings
+cargo run --locked --quiet
+cargo check --locked --target x86_64-apple-darwin
+cargo check --locked --target aarch64-apple-darwin
+cargo audit --no-fetch --deny warnings
+```
+
+Native Linux returned UID 1000, GID 1001, username `codex`, display name
+`Codex`, and home `/home/codex`, exactly matching Go 1.26.1 cgo `Current()` on
+the same host. The two-package lock audit found no issue in 1,211 available
+advisories. Apple checks establish APIs/types and compilation only: this host
+cannot link or run macOS binaries, so no macOS or Open Directory result is
+claimed.
+
 Frozen production-call inventory:
 
 ```sh
@@ -357,9 +421,10 @@ The first command found `internal/fs` account/ownership calls only in
 `internal/machine/**`; the second found the portable filesystem calls in
 `cmd/uc/main.go`; the third found the distinct current-user call in
 `internal/sshexec/ssh.go`; and the fourth found production `Machine`
-construction only in `internal/daemon/daemon.go`. Tracing `machine add` through
-`SSHDestination.Parse` and `provisionOrConnectRemoteMachine` proves the SSH call
-is reachable with an omitted user on released Linux and macOS CLIs.
+construction only in `internal/daemon/daemon.go`. Tracing both `machine add`
+and `machine init` through `SSHDestination.Parse` and
+`provisionOrConnectRemoteMachine` proves the SSH call is reachable with an
+omitted user on released Linux and macOS CLIs.
 `go list -deps` shows `internal/fs` and `internal/machine` are compiled into
 both command dependency graphs, but package compilation is not execution of
 otherwise unreachable internal functions.
@@ -402,8 +467,11 @@ binfmt/QEMU handler. No arm64 runtime or final Rust artifact result is claimed.
    final records, injected open/read errors before a match, and an error hidden
    in a matched unread suffix but observed while draining a nonmatch. Do not
    impose an undocumented line cap.
-4. A GNU/Linux fixture where native NSS resolves an account absent from the
-   files, proving ambient GNU linkage cannot change the selected backend.
+4. GNU/Linux differential fixtures where native NSS resolves an account absent
+   from the files: the release profile must remain files-only while the
+   cgo-equivalent development profile resolves it. Cover native user/group NUL
+   truncation, typed unknown results, other errno, ERANGE/1-MiB behavior, and
+   returned field copying.
 5. User-plus-group, user-only, group-only, and both-omitted ownership;
    user-before-group short-circuiting; missing/broken-symlink paths;
    non-UTF-8/NUL paths; final-symlink following; `Interrupted` retry;
@@ -411,37 +479,43 @@ binfmt/QEMU handler. No arm64 runtime or final Rust artifact result is claimed.
 6. Privileged disposable Linux amd64/arm64 fixtures for real ID changes,
    all-ones collision, set-ID/capability clearing, and ctime.
 7. Native macOS amd64/arm64 fixtures for omitted-user `ssh+go` current-user
-   resolution: local and non-files/Open Directory identities where available,
+   resolution through both machine add and init: local and non-files/Open
+   Directory identities where available,
    real-versus-effective UID, `sysconf` initial-size edges, `ERANGE` growth and
    1-MiB ceiling, no-result/`ENOENT`/other errno, native field copying, cached
    success/error, and the caller's error-to-empty-username behavior. A macOS
    build alone is not runtime parity evidence.
-8. Target gating: macOS `uc` includes only the narrow native `Current()`
+8. Direct `internal/machine` group fixtures: found `uncloud`, typed unknown
+   fallback to root GID 0 with logging, non-unknown lookup failure, malformed
+   returned GID, parent chown error, and propagation of the same GID to socket
+   creation.
+9. Target gating: macOS `uc` includes only the narrow native `Current()`
    boundary plus portable `ExpandHomeDir`/`Exists`; Linux daemon crates own
    `internal/fs` lookup/group/chown. Do not add unsupported non-Linux stubs or
    expose daemon-only account APIs merely to make unrelated crates compile.
-9. Rust 1.96 formatting, targeted all-target tests/checks, warnings-denied
+10. Rust 1.96 formatting, targeted all-target tests/checks, warnings-denied
    Clippy, relevant Go oracle/differential tests, and final release-artifact
-   inspection for Linux amd64/arm64.
+   inspection for Linux and macOS amd64/arm64, including selected backend and
+   linkage.
 
 ## Review state and unlock impact
 
 Earlier reviews corrected three independent scope errors: package compilation
 alone does not make `internal/fs` lookup observable on macOS; a canonical
 cgo-enabled Linux development build cannot be silently declared out of scope;
-and the separately reachable omitted-user `ssh+go` CLI path does execute native
+and the separately reachable omitted-user `ssh+go` paths do execute native
 macOS `Current()`. They also exposed the cgo-free process-global `Current()`
 behavior omitted by the first files-only proposal. This revision records both
-reachable paths and leaves OS-ABI/build-scope choices with the controller/user.
+CLI paths, the direct machine group caller, and the evidence still missing from
+the target-specific libc candidate.
 
-A fresh parity reviewer and a fresh Rust dependency reviewer must confirm the
-unresolved authority gate, Linux and macOS current-user fidelity, conditional
-rustix/libc hard gates, caller reachability, parser/chown fidelity, evidence
-honesty, and sole-file scope.
+A fresh parity reviewer and a fresh critical Rust dependency reviewer must
+confirm Linux and macOS current-user fidelity, native name/group behavior,
+conditional rustix/libc hard gates, caller reachability, parser/chown fidelity,
+the exact macOS infrastructure blocker, evidence honesty, and sole-file scope.
 
-Affected packages: future `crates/ployz-internal-fs` and
-`crates/ployz-internal-sshexec` / Go packages `upstream/uncloud/internal/fs`
-and `upstream/uncloud/internal/sshexec`. Both remain dependency-blocked until
-the OS-ABI and supported-build decisions are explicit. Machine-level direct
-`os/user` lookup may reuse a selected backend only if its caller/build profile
-is identical.
+Affected packages: future `crates/ployz-internal-fs`,
+`crates/ployz-internal-sshexec`, and `crates/ployz-internal-machine` / matching
+Go packages. All remain dependency-blocked until native macOS evidence and the
+required critical review pass. They must share the selected account primitives
+and process-global cache under the explicit artifact profile.
