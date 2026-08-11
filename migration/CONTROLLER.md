@@ -1,9 +1,9 @@
 # Controller workflow
 
 This file is the single authoritative scheduler and integration workflow for
-the port. `migration/PACKAGES.tsv` and `migration/DEPENDENCIES.tsv` are the
-restartable machine-readable state. Per-package packet, review, worker, and
-result Markdown files are not part of this workflow.
+the port. `migration/PACKAGES.tsv`, `migration/DEPENDENCIES.tsv`, and
+`migration/TASKS.tsv` are the restartable machine-readable state. Per-package
+packet, review, worker, and result Markdown files are not part of this workflow.
 
 The controller schedules packages and dependencies and serially integrates
 accepted work. It does not implement package crates or review its own changes.
@@ -72,6 +72,30 @@ integration base commit. A worker may commit only its crate path. Shared root
 Cargo files, the lockfile, registries, decisions, and the integration branch are
 controller/integrator-owned.
 
+### Native package-owner topology
+
+The normal implementation pool consists of eight fresh native Codex worktree
+threads in addition to the supervisor. Each package has exactly one native
+package-owner thread, and that owner controls the package's entire lifecycle:
+oracle/caller inspection, implementation, targeted gates, two fresh read-only
+adversarial reviews, fixes, rerun gates, fresh clean re-reviews, the final
+crate-only commit, and one structured final result.
+
+The package owner creates and controls its own parity and Rust-quality review
+contexts. Those review contexts are children of the package lifecycle; the
+supervisor does not launch, monitor, or adjudicate package-level reviews as
+separate workflow tasks. A package is not accepted merely because it compiles
+or because the supervisor obtained an independent review.
+
+The supervisor catalogs and schedules packages, monitors only package-owner
+threads, handles structured dependency requests, verifies accepted commits,
+integrates serially, runs workspace/oracle gates, pushes, archives, and refills
+native lanes. New package work must never be launched in the supervisor's
+collaboration subagent pool. Legacy collaboration package owners already active
+on 2026-08-11 may finish their current package under the same complete
+review/fix/re-review contract; replace each with a fresh native package-owner
+thread when it finishes.
+
 ### Dependency pool
 
 Cap newly launched dependency-research tasks at **4 concurrent tasks**. Let
@@ -79,6 +103,11 @@ already-running research above the cap finish; do not cancel useful work.
 Deduplicate requests by capability. Critical capabilities require a fresh
 adversarial second researcher before approval. Dependency research and
 adversarial review never consume implementation slots.
+
+Each dependency capability is likewise owned end-to-end by one dedicated
+native dependency thread, including its bounded research and required internal
+review. The supervisor records and integrates only the thread's explicit final
+decision.
 
 ### Review pool
 
@@ -145,11 +174,15 @@ discard unrelated/user work.
 
 ## Restart and recovery
 
-After every scheduler transition, update the compact TSV row with state, owner
-or thread, base, commit, and blocker. Dependency rows record the durable decision
-and active research/review task when applicable. On restart, rebuild readiness
-from the import DAG plus these rows, verify current Git state, reconcile live
-tasks, and refill writers before launching optional new research.
+After every scheduler transition, update the package row with state, owner or
+thread, base, commit, and blocker, and update `migration/TASKS.tsv` with each
+live package-owner or dependency-owner task's thread ID, host ID, cursor, role,
+package, worktree/branch, state, base, and current artifact commit. Child review
+contexts remain under their owner and are not supervisor task rows. Dependency
+rows record the durable decision and active owner task when applicable. On
+restart, rebuild readiness from the import DAG plus these rows, verify current
+Git state, reconcile live owner tasks, and refill native writers before
+launching optional new research.
 
 Repeated mistake classes update global `PORTING.md` or this controller and
 trigger a targeted re-audit of affected earlier crates. No package-specific
