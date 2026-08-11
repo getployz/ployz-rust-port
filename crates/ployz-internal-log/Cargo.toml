@@ -1,0 +1,10 @@
+[package]
+name = "ployz-internal-log"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "registry", "std"] }
