@@ -3,7 +3,7 @@ build-time-vcs-metadata	approved	migration/dependencies/build-time-vcs-metadata.
 docker-oci-reference-parsing	approved	migration/dependencies/docker-oci-reference-parsing.md	oci-spec[distribution]	0.10.0	Apache-2.0	no	internal/cli/tui	-
 prometheus-metrics	approved	migration/dependencies/prometheus-metrics.md	prometheus[protobuf]	0.14.0	Apache-2.0	no	internal/metrics,internal/machine/metrics	-
 structured-logging-facade	approved	migration/dependencies/structured-logging-facade.md	tracing;tracing-subscriber	0.1.44;0.3.23	MIT	no	internal/log	-
-synchronous-outbound-http-client	adversarial-review	migration/dependencies/synchronous-outbound-http-client.md	reqwest[blocking,gzip,http2,rustls]	0.13.4	MIT OR Apache-2.0	yes	internal/dns	019ff0cd-eb07-74e1-9f4c-ecbc2c6c24ea
+synchronous-outbound-http-client	blocked	migration/dependencies/synchronous-outbound-http-client.md	-	-	-	yes	internal/dns	-
 interactive-terminal-runtime	adversarial-review	migration/dependencies/interactive-terminal-runtime.md	crossterm;terminal_size	0.29.0;0.4.4	MIT;MIT OR Apache-2.0	yes	internal/cli/tui	019ff0cf-0b43-7133-8a36-1f37d8434f27
 terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	console;comfy-table	0.16.4;8.0.0	MIT	yes	internal/cli/tui	-
 terminal-output-profile	queued	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	-
