@@ -2,339 +2,300 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` (prerequisite decisions are not approved) |
-| Selected dependency | **No standalone interceptor dependency, conditionally.** After its own approval and integration, reuse `tonic 0.14.6` and direct `tower 0.5.3` from `async-grpc-client-server`; semantic-version parsing remains a separate dependency gate. |
-| License | `MIT` for both direct crates |
+| Status | `approved` |
+| Capability | gRPC version metadata, conditional server policy, response header inspection, and unary/streaming interception for `internal/grpcversion` |
+| Selected dependency | **No standalone interceptor crate.** Reuse approved `tonic 0.14.6` and direct `tower 0.5.3`; reuse approved `semver 1.0.28` through the exact compatibility boundary in `semantic-version-parsing`. |
+| License | `MIT` for Tonic/Tower; `MIT OR Apache-2.0` for SemVer |
 | Research date | `2026-08-11` UTC |
-| Request | Controller delegation for `grpc-metadata-interceptor`; no request file exists at base `147dbcf` |
+| Request | Controller delegation for `grpc-metadata-interceptor`; no request file exists |
+| Blockers | None for this capability |
 
-## Decision and deduplication
+## Decision and dependency composition
 
-The metadata/interceptor mechanism is naturally part of the async gRPC stack.
-Do not add an interceptor helper crate. Tonic already owns the gRPC-aware
-`MetadataMap`, ASCII/binary key and value types, `Request`, `Response`,
-`Status`, and request-side `Interceptor`. Tower is the service middleware model
-underneath Tonic and is required by the async gRPC decision for response-aware
-client and server work. A separate metadata/interceptor dependency would
-duplicate those types or wrap the same APIs without supplying missing behavior.
+Do not add an interceptor helper crate. Tonic owns the gRPC-aware
+`MetadataMap`, ASCII/binary key and value types, `Request`, `Response`, and
+`Status`; Tower is Tonic's native response-aware middleware model. A separate
+metadata/interceptor crate would wrap the selected stack without closing any
+behavior gap.
 
-This is a conditional deduplication result, not an approval of that stack. The
-`async-grpc-client-server` record is absent from this exact-base worktree and
-its current sibling candidate remains `human-decision-required`. This record
-cannot become `approved` until that decision is accepted and integrated.
+Both prerequisites that blocked the earlier conditional record are now
+approved:
 
-If `async-grpc-client-server` is approved with its current candidate, this
-record reuses these exact versions and features (its expected decision path is
-`migration/dependencies/async-grpc-client-server.md`, absent at this base):
+- [`async-grpc-client-server`](async-grpc-client-server.md) selects Tonic,
+  Tower, Tokio, and the public codec/HTTP service seam and proves the relevant
+  response, status, deadline, cancellation, and custom-transport behavior.
+- [`semantic-version-parsing`](semantic-version-parsing.md) selects SemVer and
+  proves the exact Masterminds v1.5.0-compatible parser/formatter/comparator
+  policy, including the frozen dependency's malformed-prerelease comparison
+  flaw.
+
+Use these exact direct declarations where their surfaces are used:
 
 ```toml
+[dependencies]
+bytes = "=1.12.1"
+http = "=1.5.0"
+hyper-util = { version = "=0.1.20", features = ["tokio"] }
+semver = { version = "=1.0.28", default-features = false, features = ["std"] }
+tokio = { version = "=1.53.1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-stream = { version = "=0.1.19", default-features = false, features = ["net"] }
 tonic = { version = "=0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
 tower = { version = "=0.5.3", default-features = false, features = ["util"] }
+
+[build-dependencies]
+tonic-build = { version = "=0.14.6", default-features = false, features = ["transport"] }
 ```
 
-`internal/grpcversion` must not add another runtime, HTTP implementation,
-metadata map, interceptor facade, or response middleware crate. The integrator
-owns the workspace declarations; this record does not authorize manifest or
-lockfile edits by the package implementor.
+`internal/grpcversion` itself normally needs only `tonic`, `tower`, `semver`,
+and the existing application/runtime types it actually names. The larger block
+is the approved shared gRPC graph used by the executable integration probes;
+implementors must not add unused support crates merely to repeat the probe.
+Only the integrator edits workspace manifests and the lockfile.
 
-This package also requires semantic-version parsing and comparison, which is
-not supplied by Tonic or Tower and has no approved dependency record. That is a
-separate dependency request, specified below; this researcher does not select a
-Rust semver crate inside the metadata/interceptor decision.
+## Oracle contract and Ployz rename
 
-## Blocking prerequisite requests
-
-### `async-grpc-client-server`
-
-- Required state: its decision must be freshly reviewed, approved, and
-  integrated before the conditional Tonic/Tower reuse here can be approved.
-- Current state observed during this review: corrected sibling candidate
-  `14c0359544e3dbd795277c1434c3339d2a68a590` is
-  `human-decision-required`, pending a newly named fresh re-review.
-- Deduplication boundary: this record selects no competing transport/runtime
-  stack and no standalone interceptor crate.
-
-### New dependency request: `semantic-version-parsing`
-
-The controller must create/deduplicate a normal dependency request for:
-
-- **Capability:** safe synchronous parsing, canonical formatting, and precedence
-  comparison of semantic-version strings with the observable behavior of
-  Masterminds/semver `v1.5.0` `NewVersion`/`LessThan`.
-- **Required parsing behavior:** accept standard three-component SemVer plus the
-  oracle dependency's permissive forms, including a leading `v`, omitted minor
-  or patch components (`v1`, `1.2`), and prerelease forms such as `1.2-5` and
-  `1.2-beta.5`; canonical `String()` fills omitted components and removes the
-  leading `v`. Preserve SemVer prerelease precedence and ignore build metadata
-  for precedence.
-- **Required fallback:** missing, empty, non-text, or parser-rejected metadata
-  becomes `0.0.0`; invalid build-injected current-version text also becomes
-  `0.0.0`.
-- **Constraints:** safe API, no async/runtime/FFI, Linux and macOS on x86_64 and
-  aarch64, permissive Apache-2.0-compatible license, Rust 1.96 compatibility,
-  active maintenance, and normal Rust ecosystem adoption evidence.
-- **Source evidence:** exact Go
-  [`version.go`](https://github.com/Masterminds/semver/blob/v1.5.0/version.go)
-  and
-  [`version_test.go`](https://github.com/Masterminds/semver/blob/v1.5.0/version_test.go),
-  plus the frozen package source/tests linked below.
-- **Waiting package:** `internal/grpcversion`.
-
-Do not assume the popular Rust `semver` crate passes this gate: its strict
-parser must be compared explicitly with Masterminds' permissive accepted-input
-matrix, and any bounded normalization step must be reviewed as behavior rather
-than hidden behind the metadata decision.
-
-## Oracle contract
-
-The frozen implementation and tests are
+The immutable oracle is
 [`interceptor.go`](../../upstream/uncloud/internal/grpcversion/interceptor.go)
-and
+with
 [`interceptor_test.go`](../../upstream/uncloud/internal/grpcversion/interceptor_test.go).
-The direct attachment points are the five connector implementations under
-[`pkg/client/connector`](../../upstream/uncloud/pkg/client/connector) and the
-two server constructions in
-[`internal/machine/machine.go`](../../upstream/uncloud/internal/machine/machine.go).
+The Rust port preserves its behavior but applies the project-wide product-name
+substitution:
 
-The dependency-facing behavior is:
+| Oracle spelling | Ployz wire/user spelling |
+| --- | --- |
+| `uncloud-client-version` | `ployz-client-version` |
+| `uncloud-min-server-version` | `ployz-min-server-version` |
+| `uncloud-server-version` | `ployz-server-version` |
+| `https://github.com/psviderski/uncloud/releases/latest` | `https://github.com/getployz/ployz/releases/latest` |
 
-| Area | Required observable behavior | Candidate API and constraint |
+No compatibility aliases are added: accepting or emitting both namespaces
+would be a new feature and would change the first-duplicate limitation. The
+minimums remain independently fixed at `0.20.0`.
+
+| Area | Required observable behavior | Selected API/design |
 | --- | --- | --- |
-| Request keys | Send `uncloud-client-version` and `uncloud-min-server-version` on every unary and streaming call. | Add lowercase ASCII keys through Tonic metadata or the equivalent HTTP headers in a Tower service. |
-| Duplicate/overwrite behavior | `metadata.AppendToOutgoingContext` appends. Existing caller values remain first, and the server reads only the first value. A caller can therefore override either injected value; preserve this observable limitation. | Use `MetadataMap::append`/`HeaderMap::append`, **not `insert`**. Tonic's `get` returns the first value and `get_all` preserves duplicate-value order. |
-| Case | gRPC keys are case-insensitive and arrive normalized to lowercase. | Keep static constants lowercase. Tonic's `MetadataKey::from_bytes` normalizes dynamic keys and comparisons/lookups are case-insensitive. |
-| Values | Missing, empty, non-text, or invalid semantic-version values become `0.0.0`; only the first duplicate is parsed. | Convert the first ASCII value with `to_str`; map absence, empty strings, conversion failures, and semver parse failures to zero rather than surfacing a metadata error. |
-| Binary metadata | The three version fields are ASCII and never use `-bin`; unrelated binary metadata must continue through untouched. | Tonic separates `get`/`append` from `get_bin`/`append_bin` and round-trips opaque bytes. Do not iterate, rewrite, or reject unrelated metadata. |
-| Server rejection | Check the client version first, then its minimum server version. Reject before the handler with gRPC `FAILED_PRECONDITION` and the oracle's exact message. | Return `Status::failed_precondition`; a Tonic interceptor or Tower service may short-circuit before invoking the inner service. |
-| Server response header | Only an accepted request gets `uncloud-server-version` as initial response metadata. It is staged before the handler and is present on the handler's success or error response. A version-policy rejection has no such header. | Use a response-aware Tower layer (Tonic `Interceptor` cannot see responses). Layer/order it so rejection bypasses header injection while every delegated response, including an application status error, gets the static ASCII header. |
-| Unary client warning | Inspect the server header only after the RPC succeeds. Missing/empty/invalid/below-minimum means `0.0.0` and prints exactly one process-wide warning. Transport/status failure does not warn. | Inspect metadata on `Ok(Response<_>)`, or make a Tower response/body future preserve the same success boundary. Do not warn merely because an HTTP/2 response head arrived. |
-| Streaming client warning | The Go wrapper warns only when `ClientStream.Header()` is explicitly called and succeeds; stream creation, message receive, and header error alone do not warn. | Tonic exposes initial metadata on `Response<Streaming<_>>`, but eager inspection would change timing. Preserve the delayed/explicit-header limitation in the package's natural client wrapper or middleware and characterize it in tests. |
-| Cancellation | Metadata work is synchronous. Cancellation and stream drop retain the underlying gRPC behavior; no background work survives a dropped call. | Tonic interceptors are synchronous. Any Tower wrapper must delegate polling directly, add no task/buffer, and drop the inner future/body normally. |
-| Platforms | No metadata behavior varies by OS. Shipped CLI targets are Linux/macOS amd64/arm64; daemon targets are Linux amd64/arm64. | Selected metadata and Tower APIs are platform-neutral. Transport platform behavior remains owned by the async gRPC decision. |
+| Client request metadata | Append current client and minimum server versions on every unary and streaming call. Existing caller values remain first, so a caller can override the injected value. Preserve unrelated ASCII and binary metadata. | `MetadataMap::append`, never `insert`, for both request keys. Tonic's `get` reads the first value and `get_all` preserves order. |
+| Parsing | Missing, empty, non-text, malformed, or overflowing first values become `0.0.0`; ignore later duplicates. Preserve permissive parse/format/comparison behavior. | First-value `get` plus fallible `to_str`, then the exact approved package-local SemVer compatibility boundary. |
+| Server validation order | Check client version first. Only if it passes, check the client's required minimum server. Reject before the handler with `FailedPrecondition` and the exact renamed-oracle message. | Synchronous policy before the raw-codec proxy handler. `Status::failed_precondition`; do not poll the inner service on rejection. |
+| Server response header | A policy rejection has no server-version header. Every accepted request gets one package-owned initial server-version value before any same-key value staged by the handler, including on a handler status/error response. | One composite response-aware proxy service: validate outside, delegate through Tonic's codec service, then prepend the fixed value while retaining delegated duplicates in order. |
+| Unary client warning | Inspect the server header only after `Ok(Response<_>)`. Missing/invalid/below-minimum maps to zero and emits the exact renamed warning once process-wide. Status/transport errors never warn. | Inspect Tonic response metadata after successful decode; gate output with a process-wide `AtomicBool`. |
+| Streaming client warning | Stream creation and message receipt do not inspect or warn. Only an explicit successful header-equivalent call inspects metadata. Header failure does not warn. Repeated successful header calls still warn at most once process-wide. | Natural `VersionedStreaming<T>` wrapper retaining the initial `MetadataMap` and exposing an explicit `header()` method; `message()` delegates untouched. |
+| Status/details | Preserve delegated code, message, opaque binary details, and status metadata. Policy errors use code 9 and the exact policy text. | Return/encode the original `Status`; the outer accepted-response header mutation must not rebuild it. |
+| Deadline/cancellation | Metadata work is synchronous and preserves the existing deadline. Dropping/canceling a call or stream cancels the underlying gRPC operation; no middleware task survives it. | Do not spawn, buffer, retry, or wrap the body for metadata policy. Delegate the inner future/body directly. Whole-stream deadline ownership remains the approved async-gRPC adapter contract. |
+| Platforms | No metadata policy varies by OS. | Safe, pure-Rust platform-neutral APIs; transport differences remain in the approved async-gRPC decision. |
 
-The Go append/first-value behavior is not incidental. Exact grpc-go 1.74.2
-source documents and tests it in
-[`metadata.go`](https://github.com/grpc/grpc-go/blob/v1.74.2/metadata/metadata.go)
-and
-[`metadata_test.go`](https://github.com/grpc/grpc-go/blob/v1.74.2/metadata/metadata_test.go).
-Its `SetHeader` contract also says staged headers are emitted when the first
-message or final status is sent, including a handler error:
-[`server.go`](https://github.com/grpc/grpc-go/blob/v1.74.2/server.go#L2069-L2094).
+## Exact attachment contract
+
+The frozen direct-caller audit finds exactly five client channel constructors:
+
+- `pkg/client/connector/tcp.go`
+- `pkg/client/connector/unix.go`
+- `pkg/client/connector/ssh.go`
+- `pkg/client/connector/sshcli.go`
+- `pkg/client/connector/wireguard.go`
+
+Each attaches both unary and streaming client interceptors. The Rust channel
+construction path must attach the Ployz request policy to every corresponding
+transport; connector-specific retry/transport decisions remain separate.
+
+The server policy is deliberately conditional. In
+[`machine.go`](../../upstream/uncloud/internal/machine/machine.go), only the two
+unknown-service transparent proxy frontends attach both server interceptors:
+the local proxy built during machine creation and the cluster proxy built after
+initialization. `newGRPCServer` constructs the ordinary four-service Machine,
+Cluster, Docker, and Caddy backend with no version interceptor. The Rust port
+must keep that backend unwrapped and place the version service only around the
+two proxy-only raw-codec frontends selected by `async-grpc-client-server`.
+
+## Middleware ordering and error precedence
+
+Use a single conditional service or rigorously equivalent layer order:
+
+1. Read only the first Ployz client/minimum-server values and validate them.
+2. On policy failure, synthesize the exact `FailedPrecondition` gRPC response
+   immediately, with no Ployz server-version header and without invoking the
+   director/codec/handler.
+3. On policy success, invoke Tonic's codec service. Tonic turns an application
+   `Status` into the final HTTP/gRPC response while preserving code, message,
+   details, and metadata.
+4. Collect any delegated `ployz-server-version` values, clear that one key,
+   append the fixed package value, then re-append the delegated values in their
+   original order. This reproduces grpc-go staging: the package value is first,
+   handler values follow, and all survive regardless of application success or
+   status. Leave every other response header untouched.
+
+This order preserves the oracle's response precedence. In grpc-go, a
+`SetHeader` failure occurs before the handler and therefore wins; the
+differential probe characterizes that branch. In the selected Rust path the
+key and value are prevalidated static ASCII and the header map mutation is
+infallible, so that generic production failure has no reachable equivalent.
+Do not create a fallible dynamic header conversion on each call. A Tower
+readiness/transport error after policy acceptance must be converted to the
+normal gRPC response at the codec boundary before adding the server-version
+header; it must not become a headerless policy rejection.
 
 ## Hard gates
 
-| Gate | Requirement | Evidence | Result |
-| --- | --- | --- | --- |
-| Behavior | Typed gRPC metadata, duplicate ordering, case-insensitive keys, ASCII/binary separation, request short-circuit, response header mutation/inspection, unary and streaming coverage, exact status code, transparent cancellation, and Masterminds-compatible version parsing/comparison. | Tonic's metadata and status APIs cover the gRPC mechanisms; its interceptor documentation explicitly limits interceptors to request metadata/rejection and recommends Tower for response-aware work. The local probe covers only the in-memory cases listed in Verification. The corrected sibling async-gRPC probe covers conditional header/warning timing but remains unapproved. No dependency decision yet covers permissive semantic-version behavior. | **`fail` pending both prerequisite decisions and missing package-level characterizations** |
-| License and security | Permissive license; no known advisory in the selected graph; no new unsafe/FFI surface. | Tonic 0.14.6 and Tower 0.5.3 declare MIT. The 28-dependency metadata probe graph declared only MIT, Apache-2.0, compatible combinations, and Unicode-3.0 terms. `cargo audit --no-fetch --deny warnings` scanned 1,211 RustSec advisories at database commit `d0861df1eab469d3c58d6b836ce48b5766e5f217` and found no vulnerability. Resolved `bytes 1.12.1` is newer than the `>=1.11.1` fix for RUSTSEC-2026-0007. Package code needs no unsafe or FFI. | `pass` |
-| Platforms and targets | Linux/macOS x86_64 and aarch64; no OS-specific semantics. | The metadata-only locked probe passed Rust 1.96 checks for all four shipped target triples. The same four-target check passed for the full async gRPC probe. Tonic metadata and Tower service traits have no OS gates. | `pass` (non-Linux checks are compile-only, which is sufficient for this platform-neutral capability) |
-| Maintenance and Rust version | Current maintained releases, MSRV no greater than Rust 1.96, broad production adoption. | Tonic 0.14.6 was released 2026-05-07, declares MSRV 1.88, and official crates.io data reported 353.7M total/81.5M recent downloads and 3,256 reverse dependents. Tower 0.5.3 was released 2026-01-12, declares MSRV 1.64, and reported 586.2M total/153.9M recent downloads and 4,559 reverse dependents. Both are current, non-yanked releases. | `pass` |
-| Architectural constraints | Reuse the chosen async gRPC/Tokio/Tower architecture after its approval; do not pre-empt protobuf or add a Go-shaped facade. | These APIs are the native metadata and middleware surfaces of the conditional stack. No protobuf crate is needed for this capability, and the implementation can be a small domain policy plus ordinary service layers. The currently unapproved/absent async-gRPC record prevents final approval here. | **`blocked`** |
-
-### Primary-source evidence
-
-- Tonic 0.14.6's
-  [`Interceptor` contract](https://docs.rs/tonic/0.14.6/tonic/service/interceptor/trait.Interceptor.html)
-  accepts `Request<()>`, can mutate/check `MetadataMap`, and can reject with a
-  `Status`; it explicitly directs response-aware middleware to Tower. The
-  [implementation](https://docs.rs/tonic/0.14.6/src/tonic/service/interceptor.rs.html)
-  preserves the request body and bypasses the inner service when rejected.
-- [`MetadataMap`](https://docs.rs/tonic/0.14.6/tonic/metadata/struct.MetadataMap.html)
-  documents `append`, first-value `get`, ordered `get_all`, replacement by
-  `insert`, and distinct binary methods. The
-  [`MetadataKey` source](https://docs.rs/tonic/0.14.6/src/tonic/metadata/key.rs.html)
-  documents normalization and case-insensitive comparison; the
-  [`MetadataValue` source](https://docs.rs/tonic/0.14.6/src/tonic/metadata/value.rs.html)
-  documents visible-ASCII validation, fallible text conversion, and opaque
-  binary conversion.
-- [`Response`](https://docs.rs/tonic/0.14.6/tonic/struct.Response.html) exposes
-  initial response metadata, while
-  [`Streaming`](https://docs.rs/tonic/0.14.6/tonic/struct.Streaming.html) exposes
-  messages and trailing metadata. Initial stream metadata is therefore on the
-  outer `Response`, not on each message.
-- [`Status`](https://docs.rs/tonic/0.14.6/tonic/struct.Status.html) provides
-  `failed_precondition`, and
-  [`Code`](https://docs.rs/tonic/0.14.6/tonic/enum.Code.html) fixes its wire value
-  at 9.
-- The official [gRPC metadata guide](https://grpc.io/docs/guides/metadata/) and
-  [HTTP/2 protocol](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md)
-  define case-insensitive keys, ASCII versus `-bin` values, initial response
-  headers, duplicate-value ordering, and the reserved `grpc-` namespace.
-- Exact release manifests declare versions, features, licenses, and MSRVs for
-  [`tonic 0.14.6`](https://docs.rs/crate/tonic/0.14.6/source/Cargo.toml.orig)
-  and
-  [`tower 0.5.3`](https://docs.rs/crate/tower/0.5.3/source/Cargo.toml.orig).
-  Current release/download/dependent data came from the official crates.io APIs
-  for [Tonic](https://crates.io/api/v1/crates/tonic) and
-  [Tower](https://crates.io/api/v1/crates/tower) on the research date.
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Required behavior | The exact oracle-package harness and exact-version Rust harness produce byte-identical output across six scenarios after only the mandated product-name substitution. The approved async-gRPC codec and HTTP/2 probes cover actual wire duplication/binary metadata, response headers, success trailers, non-OK status/details, deadlines, cancellation, and conditional forwarding. The approved SemVer differential covers all parser/comparator behavior. | `pass` |
+| License/security | Tonic/Tower are MIT; SemVer is MIT or Apache-2.0. Selected code is safe Rust with no FFI. The exact 66-package probe lock passed 1,211-advisory RustSec audit; SemVer adds no transitive normal dependency. | `pass` |
+| Platforms | Rust 1.96 locked all-target checks passed for Linux/macOS x86_64/aarch64. Metadata policy is platform-neutral; the shared async stack passed the same matrix. | `pass` |
+| Maintenance/MSRV/adoption | Tonic 0.14.6 declares Rust 1.88 and had 3,256 reverse dependents; Tower 0.5.3 declares Rust 1.64 and had 4,559; SemVer 1.0.28 declares Rust 1.68 and had 3,408. All exact releases are current, non-yanked, and compile on Rust 1.96. | `pass` |
+| Architecture | Reuses the approved gRPC and SemVer primitives, adds no competing runtime/protocol/parser, keeps response behavior in Tower/Tonic, and keeps package policy small and domain-specific. | `pass` |
 
 ## Candidate comparison
 
-| Candidate | Behavior and ecosystem fit | Adoption/maintenance/build cost | Decision |
-| --- | --- | --- | --- |
-| `tonic 0.14.6` + `tower 0.5.3` proposed for async gRPC | Exact native metadata types, request rejection, response-aware service composition, all RPC shapes, statuses, and normal cancellation. The recorded package policy supplies only version semantics. | Current, high-adoption releases; no second runtime/protocol stack and no extra package beyond the deduplicated async gRPC graph. | **Conditional selection only; approve after the upstream stack decision.** |
-| Tonic `Interceptor` alone | Exact request metadata and rejection API, but its contract only receives `Request<()>`; it cannot add or inspect response headers. | Zero extra graph, but fails response behavior. | Reject as the complete mechanism; use it only for request-side work with Tower for responses. |
-| Official `grpc 0.9.0` metadata interceptors | Provides attach/capture header interceptors, but the release documentation says it is a preview, all APIs are unstable, and it is not recommended for production. It would replace rather than complement Tonic. | Only 14 reverse dependents in the async gRPC research; successor architecture still changing. | Reject on production-stability gate and because the async gRPC decision already rejects it. |
-| `grpcio 0.13.0` / gRPC C Core | Supports custom metadata and interceptors but brings a second gRPC implementation, unsafe FFI/CMake, C Core/BoringSSL defaults, and incompatible codegen/runtime coupling. | Last release was in 2023, no declared MSRV, materially larger native platform/security surface. | Reject on architecture, maintenance, and build/security cost. |
-| Raw `http::HeaderMap` or custom protocol metadata | Can represent duplicate HTTP fields, but does not itself enforce gRPC ASCII/`-bin` distinctions or provide gRPC statuses and stream integration. | Reimplements semantics already maintained by Tonic and risks reserved-header mistakes. | Reject as a standalone solution; Tower may manipulate validated static headers at the service boundary while package policy reads via Tonic types. |
-| `tower-http` or niche interceptor helper crates | Generic/auth/observability helpers do not implement this application's version policy or its unusual warning timing. They still sit on Tower/Tonic. | Extra dependency and abstraction with no behavior advantage or adoption justification for this narrow policy. | Reject. |
-
-## Conditional integration after prerequisites
-
-If both prerequisite decisions pass, follow the candidate stack's natural
-service model:
-
-1. Define the three lowercase ASCII keys once. Parse dynamic version strings to
-   `AsciiMetadataValue` explicitly; the fixed minimum is a validated static
-   value. Treat a failed incoming `to_str` or semver parse as zero.
-2. On the client request path, `append` current-client and minimum-server values
-   after all existing metadata. Never `insert`, clear, or rebuild the map.
-3. On the server path, validate request metadata synchronously before polling
-   the handler. Return `Status::failed_precondition` with the exact oracle text
-   and do not attach the server-version header to this rejection.
-4. For a request that passes validation, delegate unchanged and add exactly one
-   `uncloud-server-version` initial response header to every inner response,
-   including a handler status error. Put validation outside response injection,
-   or implement the two actions in one Tower service, so the reject path cannot
-   accidentally gain the header.
-5. Keep the response warning's success and timing boundaries. Unary status or
-   transport failures do not warn. Streaming creation/message receipt does not
-   warn; only a successful explicit header-equivalent operation does. Use the
-   process-wide atomic exactly-once gate only after determining a warning is
-   required.
-6. Middleware must not spawn, buffer, retry, alter readiness, consume body
-   frames/trailers, or translate cancellation. It should delegate the inner
-   future/body and preserve drop behavior.
-
-Tonic's built-in interceptor can be used where generated client/server types
-make request-only composition convenient. Response behavior belongs in the
-same package's ordinary Tower layer/future; do not introduce a generic wrapper
-whose purpose is to imitate grpc-go's function signatures.
-
-### Known limitations
-
-- Tonic interceptors are synchronous and request-only. Tower middleware is not
-  optional for a global response-aware implementation.
-- Tonic exposes streaming initial metadata when `Response<Streaming<_>>`
-  resolves, earlier than grpc-go's explicit `ClientStream.Header()` method.
-  Eager warning checks would be a parity regression even though the metadata is
-  available; preserve the oracle's delayed limitation deliberately.
-- `MetadataMap::insert` removes all prior duplicate values. It is correct for
-  the single server-version header emitted by this package but incorrect for
-  the two client request headers, which must append.
-- Invalid metadata constructed from dynamic values is rejected by Tonic before
-  transport. The package's emitted values are semver strings and therefore
-  valid visible ASCII. Incoming conversion failures still map to zero as
-  required.
-- The semantic-version parser is unselected. Tonic/Tower cover transport
-  metadata, not Masterminds-compatible parsing, normalization, or comparison.
-- The Tonic/Tower versions above are not independently approved here; they are
-  conditional on the async-gRPC dependency record passing its own fresh review.
-- This record does not approve protobuf, retry, proxy, TLS, reflection, or
-  compression dependencies. Those remain separate gates in the async gRPC
-  decision.
+| Candidate | Fit | Decision |
+| --- | --- | --- |
+| Tonic 0.14.6 + Tower 0.5.3 + approved SemVer boundary | Native typed metadata/statuses, response-aware service composition, all RPC shapes, broad adoption, and no duplicate transport/parser. | **Selected.** |
+| Tonic `Interceptor` alone | Correct request mutation/rejection, but receives only `Request<()>` and cannot implement conditional response headers or client response inspection. | Use only where request-only composition is natural; insufficient alone. |
+| Official `grpc 0.9.0` | Preview layered on Tonic; release documentation says unstable and not recommended for production. It would replace the approved stack. | Reject. |
+| `grpcio 0.13.0` / C Core | Metadata/interceptors exist, but add unsafe FFI, CMake/C Core/BoringSSL defaults, native platform surface, and incompatible message-runtime coupling. | Reject. |
+| Raw `http::HeaderMap` as the complete API | Represents duplicate wire fields but does not enforce Tonic's ASCII/`-bin` distinction or supply gRPC statuses/stream integration. | Reject standalone use; permitted only at the already-selected outer HTTP response seam. |
+| `tower-http` or niche interceptor helpers | Do not implement this application's policy or delayed streaming warning and still require Tonic/Tower. | Reject as redundant. |
 
 ## Verification
 
-The disposable probe at `/tmp/ployz-grpc-metadata-probe` pins Tonic 0.14.6 with
-default features disabled and the `codegen` feature. It asserts:
+Two new disposable probes are outside the repository:
 
-- existing/request-injected duplicate order `caller-first, 1.2.3` and
-  first-value lookup;
-- uppercase lookup and dynamic-key normalization;
-- invalid key and newline-containing ASCII value rejection;
-- unrelated binary byte round-trip `00ff6f7061717565`;
-- response metadata insertion; and
-- interceptor rejection with `Code::FailedPrecondition`.
+- `/tmp/ployz-grpc-metadata-diff-go` imports the frozen
+  `internal/grpcversion` package itself under Go 1.26.1. Its fake grpc-go
+  transport/client/server streams invoke the real exported interceptors.
+- `/tmp/ployz-grpc-metadata-diff-rust` pins the complete exact dependency and
+  feature block above under Rust 1.96.0. It instantiates Tonic metadata,
+  response, and status types plus the approved SemVer boundary and the natural
+  explicit-header stream wrapper.
 
-Commands and results:
+Six isolated process scenarios assert:
 
-```sh
-cargo +1.96.0 run --locked --offline \
-  --manifest-path /tmp/ployz-grpc-metadata-probe/Cargo.toml
-# PASS; printed the expected duplicate, case, binary, status, and response values
+1. missing, malformed, old-client, old-server, accepted, and first-duplicate
+   server policy branches with exact code/message, handler invocation, and
+   conditional header presence;
+2. unrelated binary metadata, application status/details preservation,
+   package-first preservation of a same-key handler response value, and
+   header-set-versus-handler error precedence;
+3. client request append order, binary preservation, and deadline metadata;
+4. unary success warning versus status/transport error silence;
+5. no warning at stream creation or receive, warning only after a successful
+   explicit header call, no warning after header error, and warn-once behavior;
+6. streaming handler status/header preservation and cancellation propagation.
 
-cargo +1.96.0 clippy --locked --offline --all-targets \
-  --manifest-path /tmp/ployz-grpc-metadata-probe/Cargo.toml -- -D warnings
-# PASS
+After substituting only the required upstream product strings in Go output,
+all six Go and Rust outputs compare byte-for-byte:
 
-cargo audit --no-fetch --deny warnings \
-  --file /tmp/ployz-grpc-metadata-probe/Cargo.lock
-# PASS; 28 dependencies, 1,211 advisories, no vulnerability
-
-for target in \
-  x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu \
-  x86_64-apple-darwin aarch64-apple-darwin
-do
-  cargo +1.96.0 check --locked --offline --target "$target" \
-    --manifest-path /tmp/ployz-grpc-metadata-probe/Cargo.toml
-done
-# PASS; non-Linux checks are compile-only
+```text
+DIFFERENTIAL PASS: 6/6 scenarios byte-identical after explicit product-name substitution
 ```
 
-The corrected sibling `async-grpc-client-server` probe additionally passed
-conditional request/response Tower middleware across unary, server-streaming,
-and bidirectional calls over custom async IO. It asserted that rejected calls
-bypass the handler and server-version header, accepted success and handler-error
-responses receive the header, unary error does not warn, stream creation does
-not warn, and explicit stream-header access warns once. That record remains
-unapproved and is supporting evidence only. Its exact 66-package graph passed
-RustSec and the same four targets.
+The frozen package tests also pass:
 
-Neither probe establishes all package parity. In particular:
+```text
+GOTOOLCHAIN=local go test ./internal/grpcversion
+ok github.com/psviderski/uncloud/internal/grpcversion 0.005s
+```
 
-- the metadata-only probe does not exercise missing, empty, non-text, or
-  invalid-semver fallback through the package policy;
-- it does not compare exact rejection or warning text;
-- duplicate order is tested only in memory, not across a client/server wire;
-- it does not start and drop an in-flight call/stream or observe cancellation;
-- the broader probe uses simplified test messages and its request injection
-  uses `insert`, so it is not evidence for the oracle's append/first duplicate
-  behavior; and
-- no probe in this decision establishes Masterminds' permissive version parse
-  matrix against a selected Rust dependency.
+Rust commands passed:
 
-Before package acceptance, add focused tests for every item above plus current
-version normalization, both minimum comparisons, handler non-invocation on
-rejection, handler-error header presence, unary success/error warning boundary,
-explicit streaming-header timing, and process-wide warn-once concurrency.
+```text
+cargo +1.96.0 fmt --check
+cargo +1.96.0 check --locked --offline --all-targets
+cargo +1.96.0 clippy --locked --offline --all-targets -- -D warnings
+cargo +1.96.0 check --locked --offline --all-targets --target x86_64-unknown-linux-gnu
+cargo +1.96.0 check --locked --offline --all-targets --target aarch64-unknown-linux-gnu
+cargo +1.96.0 check --locked --offline --all-targets --target x86_64-apple-darwin
+cargo +1.96.0 check --locked --offline --all-targets --target aarch64-apple-darwin
+cargo audit --no-fetch --deny warnings --file Cargo.lock
+```
+
+The audit loaded 1,211 advisories and found no vulnerability in 66 resolved
+packages. Exact disposable-probe hashes are:
+
+```text
+Rust Cargo.toml  a01e15a8602c98174e16079dd2740f95e5660868385f9cc255f4dc2ea604ff51
+Rust Cargo.lock  1a4f7a2f0d34b76cc92b20083ced27c3a613257ce4ec3ec9095aec7ee42782d4
+Rust src/main.rs e57c4bb7232588b995520bdaa118d935ce6917bfd00c3dbba4892a6c185ed51b
+Go go.mod         f726184c178a68fb460a216da421f5a2879a2fc5b5a626eb9dbf9f56ca5b1824
+Go go.sum         75e708cc96fef09a6c770a03770d62e967a999d45aa8533c711ddae45b874ce6
+Go main.go        03a58178c80f0ad9afb2f4f4d958a7b6529503c0ed63e3e51b376442fc7e2925
+```
+
+This targeted evidence composes with the approved async-gRPC record's two
+actual network probes. Those probes already establish duplicate/binary
+metadata over HTTP/2, conditional proxy-only response headers, opaque status
+details and trailers, whole-stream deadline handling, downstream-reset
+cancellation, all unary/server-streaming/bidirectional shapes, and no version
+interception on the ordinary backend. The approved SemVer record separately
+establishes zero differences across 1,559 parser/format/threshold cases and
+20,736 ordered comparisons. The dependency approval relies on that combined
+executable evidence rather than claiming the small policy harness is itself a
+complete transport.
+
+## Primary-source evidence
+
+- Tonic's [`Interceptor`](https://docs.rs/tonic/0.14.6/tonic/service/interceptor/trait.Interceptor.html)
+  accepts and may reject `Request<()>` and explicitly directs response-aware
+  middleware to Tower.
+- Tonic's [`MetadataMap`](https://docs.rs/tonic/0.14.6/tonic/metadata/struct.MetadataMap.html)
+  documents append, first-value get, ordered get-all, replacement by insert,
+  and distinct binary accessors.
+- Tonic [`Response`](https://docs.rs/tonic/0.14.6/tonic/struct.Response.html)
+  exposes initial metadata; [`Streaming`](https://docs.rs/tonic/0.14.6/tonic/struct.Streaming.html)
+  owns messages and trailing metadata; [`Status`](https://docs.rs/tonic/0.14.6/tonic/struct.Status.html)
+  carries code, message, details, and metadata.
+- grpc-go 1.74.2's exact
+  [`metadata.go`](https://github.com/grpc/grpc-go/blob/v1.74.2/metadata/metadata.go),
+  [`metadata tests`](https://github.com/grpc/grpc-go/blob/v1.74.2/metadata/metadata_test.go),
+  and [`SetHeader` contract](https://github.com/grpc/grpc-go/blob/v1.74.2/server.go#L2069-L2094)
+  define append/first-value behavior and staged initial-header timing.
+- Exact manifests define the selected versions, features, licenses, and MSRVs:
+  [`tonic 0.14.6`](https://docs.rs/crate/tonic/0.14.6/source/Cargo.toml.orig),
+  [`tower 0.5.3`](https://docs.rs/crate/tower/0.5.3/source/Cargo.toml.orig),
+  and [`semver 1.0.28`](https://docs.rs/crate/semver/1.0.28/source/Cargo.toml.orig).
+
+## Known limitations and package acceptance requirements
+
+- This approval selects primitives and fixes the adapter contract; it does not
+  mark `internal/grpcversion` implemented. Its crate tests must port every
+  frozen case and the differential scenarios above.
+- The explicit streaming `header()` method is deliberate compatibility
+  behavior. Inspecting Tonic's outer `Response<Streaming<_>>` eagerly would
+  warn too early even though the metadata is already available.
+- Incoming non-text bytes cannot be represented as valid ASCII gRPC metadata
+  by Tonic's public constructor and are rejected by transport. Package policy
+  must still treat a failed `to_str` as zero when presented with such a value;
+  unrelated `-bin` metadata must remain untouched.
+- Request keys use append, not insert. For the server response key, rebuilding
+  only that key as package value followed by delegated values is required;
+  ordinary `insert` would incorrectly delete a handler/backend duplicate and
+  ordinary post-handler `append` would incorrectly put the package value last.
+- Do not apply the server policy to the ordinary four-service backend. Do not
+  add old `uncloud-*` aliases, eager stream warnings, retries, background tasks,
+  protobuf/reflection, TLS, or compression through this decision.
+- Protobuf message/runtime choice and connector retry behavior remain their
+  own dependency gates; neither is implied by metadata approval.
+
+Affected package: `internal/grpcversion`.
+
+Direct downstream attachment owners: `internal/machine` and
+`pkg/client/connector`.
 
 ## Review
 
-Fresh reviewer `/root/grpc_metadata_research/grpc_metadata_fresh_review`
-reviewed exact candidate commit
-`6bbb4a5d95a9fa95eb6e76d582cc29b9c6289f8b` read-only and returned
-`FINDINGS`:
+Fresh read-only adversarial reviewer
+`/root/grpc_metadata_unblock/grpc_metadata_exact_review` returned one blocking
+finding on exact candidate `a785147d8d2399d4ac543a85fa959b6346e9bc69`:
+the recorded Rust source hash predated final `cargo fmt`, so the available
+artifact could not reproduce that commit's exact evidence. No behavior,
+architecture, dependency, platform, security, caller, or scope finding was
+reported.
 
-1. **P1 — semantic-version dependency was missing.** Corrected by returning
-   the explicit `semantic-version-parsing` dependency request above. This
-   record intentionally does not select that dependency; the blocker remains
-   open.
-2. **P1 — deduplication relied on an absent, unapproved async-gRPC record.**
-   Corrected by making Tonic/Tower reuse explicitly conditional on that
-   decision's approval and integration. The blocker remains open.
-3. **P2 — verification exceeded probe coverage.** Corrected by narrowing the
-   exact claims above and listing the missing package characterizations. No
-   cancellation, wire-duplicate, exact-text, fallback, or semver-parser result
-   is claimed.
-
-The reviewer confirmed the no-standalone architecture, append/first-value
-policy, case/binary separation, conditional server reject/header ordering,
-handler-error header, unary-success-only warning, explicit streaming-header
-timing, and the Tonic 0.14.6/Tower 0.5.3 candidate. Both probes reran
-successfully.
-
-Final reviewer result remains `FINDINGS`; this record is `blocked`, not
-approved. Once `async-grpc-client-server` and `semantic-version-parsing` are
-approved and the missing characterization tests exist, a fresh-context
-re-review must confirm the corrected dependency composition and evidence before
-the controller may approve this capability.
-
-Affected package/registry entry:
-
-- `internal/grpcversion`
-
-Direct downstream attachment points:
-
-- `internal/machine`
-- `pkg/client/connector`
+The record was corrected to the formatted artifact's actual SHA-256,
+`e57c4bb7232588b995520bdaa118d935ce6917bfd00c3dbba4892a6c185ed51b`,
+in candidate `cbd65d911e4b771f0dd1a99a3f8f38748230eb37`. Fresh corrected reviewer
+`/root/grpc_metadata_unblock/grpc_metadata_corrected_review` independently
+reran the six differential scenarios, oracle test, Rust 1.96 format/check/
+Clippy/four-target matrix, both async network probes, and RustSec audits; it
+returned `CLEAN / ACCEPT` with no actionable finding. It also confirmed exact
+pins/features/licenses/MSRVs, all direct callers and attachment ordering, the
+Ployz rename boundary, one-record scope, and unchanged frozen oracle.
