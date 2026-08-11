@@ -96,7 +96,7 @@ deadlines around TCP and TLS phases.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Observable behavior | **Blocked.** | Raw Hyper proved exact basic request control, connection reuse, complete body collection, numeric status 300, and visibility of one `REFUSED_STREAM`. It did not prove redirects, proxy execution, URL handling, independent timeout phases, global LRU behavior, cross-origin plain-proxy reuse, or Go's GOAWAY retry classifier. |
+| Observable behavior | **Blocked.** | Raw Hyper proved exact basic request control, connection reuse, complete body collection, numeric status 300, and visibility of `REFUSED_STREAM`. The focused HTTP/2 fault matrix proved a terminal public-API mismatch: Go can return a `GoAwayError` carrying `LastStreamID`, error code, and debug bytes, while `h2::Error` and Hyper's public error surface omit the last-stream ID and debug bytes. Hyper also erases the failed request's stream ID. The remaining redirect, proxy, URL, timeout, pool, and platform behavior is still unproved. |
 | License | **Pass for the probed graph only.** | All 101 resolved third-party package records declared permissive expressions. Any revised feature/dependency graph requires a fresh scan. |
 | Security | **Pass for the probed graph only.** | `cargo audit --no-fetch --deny warnings` scanned the 102-package lockfile against 1,211 advisories and exited 0. This does not approve an unproven adapter or a revised graph. |
 | Platforms | **Blocked.** | Linux x86_64 executed and Linux aarch64 checked. Native macOS trust and adapter behavior were not executed. Linux-to-macOS cross compilation stopped for lack of an Apple compiler/SDK and is not a native pass. |
@@ -112,13 +112,32 @@ stop and keep the capability blocked if it fails. Each later proof is warranted
 only after every earlier item passes. A package implementation must not be used
 as a dependency probe.
 
-1. **HTTP/2 retry feasibility.** Build a local fault-injection peer and compare
-   Go 1.26 with the unmodified Hyper candidate for `REFUSED_STREAM` and GOAWAY,
-   including LastStreamID/stream-ID eligibility, `retry <= 6`, and jittered
-   backoff. If behavior differs, demonstrate a public API that exposes enough
-   metadata to correct it. The current public `h2::Error` observation proves a
-   reason code only. A mismatch without public correction data is the terminal
-   behavior blocker.
+1. **HTTP/2 retry feasibility — failed, terminal for unmodified Hyper.** The
+   local deterministic matrix and exact source audit established the following:
+
+   | Case | Go 1.26.1 | Hyper 1.11.0 / h2 0.4.15 public surface | Result |
+   | --- | --- | --- | --- |
+   | Peer `RST_STREAM(REFUSED_STREAM)` | Retryable | `h2::Error` exposes remote reset plus `REFUSED_STREAM`; Hyper 1.11.0 currently places that error in its source chain | Metadata exists at the pinned versions, although Hyper documents its exact source types as unstable |
+   | GOAWAY stream eligibility | Only locally initiated streams above `LastStreamID` fail for retry | h2 internally fails only locally initiated streams above `LastStreamID` | Internal eligibility agrees |
+   | Stream 1 plus non-`NO_ERROR` GOAWAY | Return immediately without retry | Same public h2/Hyper tuple as a later excluded stream: remote GOAWAY plus reason | **Mismatch:** Hyper exposes no failed stream ID with which to apply Go's exception |
+   | Later stream plus non-`NO_ERROR` GOAWAY | Retry when its ID is above `LastStreamID` | Same public tuple as the preceding row | **Mismatch:** the two Go outcomes are indistinguishable through Hyper's public response/error API |
+   | Included stream, then connection close after GOAWAY | Return `GoAwayError` containing `LastStreamID`, error code, and debug bytes | Public `h2::Error` exposes only kind, reason, and initiator; Hyper adds no GOAWAY metadata | **Terminal mismatch:** the observable Go error cannot be reconstructed |
+   | Retry bound and timing | `retry <= 6` means seven retries/eight total attempts; the first retry is immediate, then delays are 1, 2, 4, 8, 16–17, and 32–35 seconds because positive 10% jitter is truncated to whole seconds | No equivalent retry policy; package code would have to implement it | Mechanically implementable only after the classifier exposes sufficient metadata |
+   | DNS request body | `bytes.Buffer` makes `http.NewRequest` install `GetBody`, so the POST is replayed; a `GetBody` failure supersedes the transport error | Hyper consumes the request and returns no body on a response error | Package code can retain the serialized bytes, but that does not repair the GOAWAY metadata mismatch |
+
+   The assigned 1/2/4/8/16-millisecond sequence is suitable only as a scaled
+   deterministic test clock. It is not the oracle contract: Go 1.26.1 uses
+   whole **seconds** and includes a sixth delayed retry of 32–35 seconds.
+   Official x/net HTTP/2 tests run these paths under Go's virtual-time
+   `synctest` and passed locally with Go 1.26.1.
+
+   Low-level h2 does expose a `ResponseFuture`/`SendStream` stream ID, so a
+   custom raw-h2 connection manager could recover the stream-1 distinction.
+   That is materially different from the Hyper client candidate, and it still
+   cannot recover GOAWAY `LastStreamID` or debug bytes from public `h2::Error`.
+   Parsing frames in a custom I/O interposer would amount to a new transport
+   design and is outside this candidate probe. The HTTP/2 blocker therefore
+   remains closed against approval rather than advancing to item 2.
 2. **Pure-Rust provider feasibility.** Produce a security-acceptable TLS graph
    consistent with the repository's pure-Rust constraint. Ring's C/assembly and
    Rustls-RustCrypto's production warning mean the current graph cannot pass.
@@ -146,7 +165,7 @@ already expose the policy needed to implement them later.
 
 ## Verification performed
 
-The focused Rust 1.96 research crate outside the repository ran:
+The focused Rust 1.96 research crates outside the repository ran:
 
 ```text
 cargo +1.96.0 run --locked
@@ -154,6 +173,21 @@ cargo +1.96.0 run --locked
   complete body collection, and platform-verifier construction
   PASS: one Hyper/h2 REFUSED_STREAM is visible in the public error source chain
   PASS: HTTP CONNECT, SOCKS5 local-DNS, and SOCKS5h compositions type-check
+
+cargo +1.96.0 run --offline --locked --bin probe
+  PASS: h2 reports REFUSED_STREAM as a remote reset with reason REFUSED_STREAM
+  PASS: h2 reports first-stream and later-stream non-NO GOAWAY with identical
+        public Error fields and text
+  PASS: Hyper preserves the same indistinguishable tuples only through its
+        currently exposed source chain
+
+cargo +1.96.0 check --offline --locked --bin negative
+  expected E0599: h2::Error has neither last_stream_id() nor stream_id()
+
+GOTOOLCHAIN=local /opt/go1.26.1/bin/go test golang.org/x/net/http2 \
+  -run 'TestTransportRetryAfter(GOAWAYNoRetry|GOAWAYRetry|GOAWAYSecondRequest|RefusedStream)|TestTransportRetryHasLimit' \
+  -count=1 -v
+  PASS: all five official virtual-time fault-injection tests
 
 cargo +1.96.0 check --locked --all-targets
 cargo +1.96.0 clippy --locked --all-targets -- -D warnings
@@ -169,8 +203,9 @@ cargo audit --no-fetch --deny warnings
   PASS: exact Go headers, HTTP/1 reuse, numeric status 300, full body read
 ```
 
-The Go and Rust probes agree only on the exercised basic behavior. They do not
-close the blockers above.
+The Go and Rust probes agree on `REFUSED_STREAM` classification and internal
+GOAWAY eligibility. They contradict approval on the public metadata required
+for the first-stream exception and the final observable `GoAwayError`.
 
 ## Fresh adversarial review
 
