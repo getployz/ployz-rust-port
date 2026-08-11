@@ -1,0 +1,22 @@
+[package]
+name = "ployz-internal-machine-network-tunnel"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+boringtun = { version = "=0.7.1", default-features = false }
+ployz-internal-secret = { path = "../ployz-internal-secret" }
+smoltcp = { version = "=0.13.1", default-features = false, features = [
+    "std",
+    "medium-ip",
+    "proto-ipv4",
+    "proto-ipv6",
+    "proto-dns",
+    "socket-tcp",
+    "socket-udp",
+    "socket-icmp",
+    "socket-dns",
+    "async",
+] }
