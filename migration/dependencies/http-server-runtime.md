@@ -2,24 +2,30 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` — the Hyper/Tokio family remains the best conditional candidate, but three behavior-parity authority gates and the cross-record compression conflict below remain unresolved |
+| Status | `blocked` — Hyper-private pipelined bytes break Go's idle/fresh-request deadline transition, Hyper's request-target/aggregate-head limits differ, and Tokio cannot report the listener-close result |
 | Capability | Production plain-HTTP server/runtime and gzip response compression for `ployz-internal-machine-metrics` |
 | Selected dependency | Conditional stack: Hyper `1.11.0`, hyper-util `0.1.20`, http-body-util `0.1.4`, Tokio `1.53.1`, tokio-util `0.7.19`, and flate2 `1.1.9` |
 | License | `MIT` for the Hyper/Tokio crates; `MIT OR Apache-2.0` for flate2 |
 | Research date | `2026-08-11` UTC |
 | Request | Delegated capability request; no request file exists at integration base |
-| Integration base | `a47272fab9ecef37b513d0ad8a47c81c75f86dc4` |
+| Integration base | `bb1d841c3ad59874c5076469a16aeb0ac409c3ea` |
 | Prior proposal | `1ab24e45c0d97f16d1f51a2f8db1281db089fa2e`, inspected with `git show`; its mandatory adversarial review rejected the decision |
-| Fresh adversarial review base | `f927d1bf224142754bc2f818b88fdb46d7d70686` |
+| Previous adversarial review base | `f927d1bf224142754bc2f818b88fdb46d7d70686` |
 | Affected package | `ployz-internal-machine-metrics` (`upstream/uncloud/internal/machine/metrics`) |
 
-This revision does **not** approve dependencies for implementation. A fresh
-adversarial review confirmed that direct Hyper/Tokio is the best family and
-that the earlier fixes for connection isolation, blocking work, features, and
-task ownership are directionally correct. It also found that the proposed
-shutdown model still interrupted Go's accept backoff and closed never-active
-connections too early. The corrected requirements and the new blocker are
-recorded below.
+This revision does **not** approve dependencies for implementation. Executable
+Go-versus-Rust probes show that a small state-aware transport/service adapter
+can reproduce the ordinary whole-request deadline and never-active shutdown
+cases, but cannot see bytes Hyper privately read past a request boundary. In
+the smallest failure, the first read includes three bytes of the next request;
+Go counts them toward its four-byte idle peek and grants a fresh request budget,
+while the adapter retains the idle deadline and closes the connection. The
+probes also exposed deterministic protocol-limit mismatches: Go accepts a valid
+70 KiB request target within its one-megabyte header budget while Hyper rejects
+it at a private 65,534-byte cap, and configured Hyper accepts a head beyond
+Go's aggregate limit. A standard Tokio listener also cannot report Go's
+fallible close result. The previously reported Prometheus compression-record
+conflict is already resolved at this integration base.
 
 ## Oracle and primary-source evidence
 
@@ -76,6 +82,19 @@ recorded below.
   pure-Rust `miniz_oxide` backend. The frozen tree never imports
   `prometheus/promhttp/zstd`, so `promhttp`'s optional zstd writer remains unset
   and the actual oracle offers identity and gzip, not zstd.
+- Go's [`DefaultMaxHeaderBytes`](https://github.com/golang/go/blob/go1.26.1/src/net/http/server.go#L892-L905)
+  is one MiB with 4096 bytes of read-buffer slop, and no independent
+  request-target or 100-field cap applies. Hyper's
+  [parser source](https://docs.rs/hyper/1.11.0/src/hyper/proto/h1/role.rs.html#34)
+  fixes `MAX_URI_LEN` at `u16::MAX - 1`, while its configurable defaults are
+  100 fields and an approximately 408 KiB read buffer. `max_headers` can remove
+  the field-count default, but `max_buf_size` is not an exact aggregate-head
+  bound and neither option changes the URI cap.
+- Go's net/http response writer buffers up to 2048 bytes before choosing
+  framing. Promhttp therefore uses an exact content length when the final
+  identity or gzip payload is at most 2048 bytes and chunked framing above that
+  threshold. Hyper can reproduce this without hand-writing HTTP by selecting an
+  exact-size or unknown-size one-frame body after encoding/compression.
 - Official crates.io records for
   [Hyper](https://crates.io/api/v1/crates/hyper),
   [hyper-util](https://crates.io/api/v1/crates/hyper-util),
@@ -101,10 +120,15 @@ the state machine.
 | Head delayed 120 ms, then incomplete body | Response completed at about 201 ms from request start, proving head and body share one budget rather than receiving independent budgets. |
 | Idle keep-alive | Connection closed at about 200 ms with no next request. |
 | Next request after 150 ms idle | Sending the first four bytes at 150 ms and completing the head another 150 ms later succeeded at about 302 ms, proving the fresh post-idle request budget. |
+| Privately buffered partial pipeline | The first socket write contained a complete request plus `GET`, the first three bytes of the next request. After 150 ms the fourth byte arrived, and the remainder arrived after another 150 ms. Go counted all four bytes toward its idle peek, granted a fresh request budget, and served the second request. Hyper had already hidden the first three bytes inside its parser, so the external Rust adapter retained the idle deadline and closed before the remainder. |
 | Temporary accepts | Injected `ECONNRESET`/`ECONNABORTED` attempts occurred after `5, 10, 20, 40, 80, 160, 320, 640, 1000` ms; the next fatal sentinel propagated. |
 | Cancellation during accept backoff | During the 320 ms sleep, `Shutdown` with a 50 ms context returned success only after about 320 ms. `listenerGroup.Wait` is before the context-aware drain loop, so backoff is not interrupted and the context is not a strict wall-clock bound for this phase. |
 | Never-active connection at shutdown | With a 300 ms `ReadTimeout`, a 150 ms shutdown context returned `DeadlineExceeded`; the silent `StateNew` connection remained open until about the original 300 ms read boundary. Hyper's direct graceful call closed the corresponding initial connection immediately. |
 | Bind families | Concrete IPv4 and IPv6 addresses bound without wildcard substitution. |
+| Request limits | 101 small fields and a 900 KiB request head reached the Go handler; a head 8192 bytes above one MiB returned `431`; a valid 70 KiB target reached the handler. Configured Hyper passed the first two, incorrectly accepted the Go-invalid oversized head, and returned `414` for the 70 KiB target. |
+| Write timeout | A handler that waited 350 ms still returned its response with a 200 ms `ReadTimeout`, so the read budget must clear after body completion rather than becoming a write/handler timeout. |
+| Ignored-body drain | An ignored 262,143-byte known-length body was drained and the connection reused; exactly 262,144 bytes and 262,145 bytes forced connection close. |
+| Listener close precedence | With no active connection, an injected listener-close error won even when the shutdown context was already expired. |
 
 The real Go 1.26.1 ServeMux/promhttp socket matrix produced:
 
@@ -131,15 +155,23 @@ and identity when it outranked gzip. This compatibility fallback is deliberate:
 the Rust adapter must not add zstd or return `406` when promhttp falls back to
 identity.
 
+On a real socket, the current identity exposition exceeded 2048 bytes and used
+`Transfer-Encoding: chunked` with no `Content-Encoding`. Repeated gzip probes
+straddled the threshold: a 2042-byte gzip payload used an exact content length,
+while a 2066-byte payload was chunked. Both carried
+`text/plain; version=0.0.4; charset=utf-8; escaping=underscores`, a `Date`
+header, and payloads that decoded to the same exposition. The Rust wire probe
+reproduced that framing and header matrix using public Hyper body APIs.
+
 ## Hard gates
 
 | Gate | Requirement | Evidence and disposition | Result |
 | --- | --- | --- | --- |
-| Behavior | Exact bind/accept/route/concurrency/cancellation/drain/error behavior | Direct Hyper/Tokio exposes the required low-level controls, and the ownership model below fixes accept retry and connection isolation. Public Hyper does **not** expose Go's full read-deadline or new/idle connection state machines, and Tokio listener drop cannot report close failure. | `fail` pending the three explicit authority gates |
+| Behavior | Exact bind/accept/route/limits/concurrency/cancellation/drain/error behavior | The state-aware adapter passes ordinary deadline and shutdown cases but cannot observe next-request bytes in Hyper's private buffer, causing an idle/fresh-budget mismatch. Hyper also rejects a Go-valid 70 KiB target and accepts a Go-invalid over-limit head; Tokio listener drop cannot report close failure. | `fail` on four exact scenarios |
 | License and security | Permissive licenses; no unnecessary TLS/auth/C runtime; current vulnerability scan | Direct manifests declare MIT or MIT/Apache-2.0; every resolved transitive license is permissive. Only HTTP/1 and flate2's exact pure-Rust `miniz_oxide` backend are enabled. A 1,211-advisory RustSec scan of the exact 35-package cross-target probe lock found no vulnerabilities or informational warnings. Re-run against the integrated lock. | `pass` |
 | Platforms and targets | Linux, macOS, and Windows; concrete IPv4/IPv6; no wildcard substitution | Tokio officially supports all three platforms; `SocketAddr` and `TcpListener::bind` cover both families. Rust 1.96 target checks passed for Linux, Intel macOS, and Windows GNU. Native bind/runtime probes exercised IPv4/IPv6 only on Linux, so macOS/Windows runtime claims remain package-acceptance obligations rather than research-time results. | `pass` for the dependency; native non-Linux verification still required |
 | Maintenance and Rust version | Popular, maintained current versions compatible with Rust 1.96 | Current releases were revalidated on 2026-08-11. Declared rust-version values are Hyper 1.63, hyper-util 1.64, http-body-util 1.61, Tokio/tokio-util 1.71, and flate2 1.67; the maximum is below the project's Rust 1.96. | `pass` |
-| Architectural constraints | Natural dependency APIs, bounded private accept loop, no Go-shaped compatibility server | Hyper is deliberately a low-level building block. One HTTP/1 connection builder, Tokio listener, per-connection tasks, and full response bodies are the smallest stack that keeps every relevant control point visible. | `pass`, conditional on the three behavior gates |
+| Architectural constraints | Natural dependency APIs, bounded private accept loop, no Go-shaped compatibility server | Hyper remains the HTTP parser/encoder. The extra adapter owns only transport deadline state and service lifecycle notifications; it neither parses HTTP nor imitates `net/http.Server`. | `pass` |
 
 ## Candidate comparison
 
@@ -149,7 +181,7 @@ point-in-time comparison evidence.
 
 | Candidate | Disposition | Reason |
 | --- | --- | --- |
-| **Hyper `1.11.0` + Tokio `1.53.1`** | **Selected family, blocked** | The most widely adopted low-level family and the only credible option that leaves bind, accept classification, per-connection supervision, graceful signaling, and fatal exit visible. It still needs the explicit read-deadline, new-connection shutdown, and listener-close resolutions below. |
+| **Hyper `1.11.0` + Tokio `1.53.1`** | **Selected family, blocked** | The most widely adopted low-level family and the only credible option that leaves bind, accept classification, per-connection supervision, graceful signaling, and fatal exit visible. The adapter passes the ordinary timeout/state cases but cannot observe Hyper-private bytes across a pipelined request boundary. Its request-target/aggregate-head limits and infallible listener drop also fail parity. |
 | Axum `0.8.9` | Rejected | `axum::serve` intentionally offers minimal configuration, retries accept failures internally, and has unbounded graceful shutdown. Axum routing adds Tower/framework cost but cannot repair the low-level parity gaps. |
 | Actix Web `4.14.1` | Rejected | Its first-request-head timeout and worker shutdown/force-drop result do not match Go's request/body/keep-alive deadlines or returned shutdown error, and it brings a separate runtime/server stack. |
 | Warp `0.4.3` | Rejected | Its high-level server does not expose the required bounded drain, accept error classification, or read-deadline model. Supplying a custom listener and dropping to Hyper recreates the selected stack with an extra filter layer. |
@@ -173,15 +205,16 @@ flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backe
 http-body-util = { version = "=0.1.4", default-features = false }
 hyper = { version = "=1.11.0", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "=0.1.20", default-features = false, features = ["tokio"] }
-tokio = { version = "=1.53.1", default-features = false, features = ["macros", "net", "rt", "time"] }
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
 tokio-util = { version = "=0.7.19", default-features = false }
 ```
 
 Do not enable `full`, HTTP/2, TLS, authentication, signals, a C compression
 backend, hyper-util `server-graceful`, or tokio-util `rt`. `CancellationToken`
-needs no tokio-util feature. Tokio `sync` is already activated transitively by
-tokio-util's published Tokio dependency; the probe also proved it need not be a
-direct feature. hyper-util needs only `tokio` for `TokioIo` and `TokioTimer`;
+needs no tokio-util feature. Tokio `io-util` is required by the safe
+`AsyncRead` deadline adapter, and `sync` is explicit because the adapter uses
+Tokio lifecycle notification rather than depending on feature unification.
+hyper-util needs only `tokio` for `TokioIo`;
 Hyper itself owns the HTTP/1 server and graceful-connection API. Tokio `macros`
 is required by the unbiased `select!` accept/cancellation race and by the
 current-thread test; it is not an accidental convenience feature.
@@ -196,10 +229,13 @@ without enabling a required API.
 1. Construct `SocketAddr::new(supplied_ip, 51090)` and await
    `TcpListener::bind` **before** reading the cancellation token. An already
    cancelled caller must still receive `AddrInUse` or another bind error.
-2. Configure Hyper HTTP/1 only with `TokioIo` and `TokioTimer`. Do not enable
-   h2c. The five-second Hyper header timer is only a partial mitigation and may
-   be enabled only after the deadline exception gate is explicitly accepted or
-   a faithful replacement is proved.
+2. Configure Hyper HTTP/1 only with `TokioIo`; do not enable h2c or Hyper's
+   header timer. Set `max_headers(262_144)`, the maximum count implied by Go's
+   byte budget and a four-byte minimum field line, and
+   `max_buf_size(1_052_672)`, the closest public aggregate-head setting.
+   The probe proves it is not exact: Hyper still accepted a head that Go
+   rejected. The separate 65,534-byte request-target cap is private and cannot
+   be configured.
 3. The accept loop classifies only `io::ErrorKind::ConnectionReset` and
    `ConnectionAborted` as the Go accept-side transient cases. Log each failure;
    sleep 5 ms then double to 10, 20, 40, 80, 160, 320, 640 ms and cap at one
@@ -216,10 +252,12 @@ without enabling a required API.
    reaps supervisors but treats every supervisor outcome as per-connection and
    nonfatal. No Hyper protocol error or connection/service panic is returned
    from the server.
-5. Pin the inner Hyper connection. Once the new/idle-state gate below is
-   resolved, apply its authorized state-aware shutdown action and continue
-   awaiting the connection. Calling `graceful_shutdown()` indiscriminately is
-   rejected because it closes a never-active connection immediately. If the
+5. Pin the inner Hyper connection and poll lifecycle notifications beside it.
+   On cancellation, leave a never-active connection alone until its first-read
+   deadline; if it becomes active later, or is already active/idle, call
+   `graceful_shutdown()`. Continue awaiting the connection. Calling it
+   indiscriminately is rejected because it closes a never-active connection
+   immediately. If the
    outer server exits for a fatal listener/control error, do **not** cancel any
    connection token; existing connections continue as they do after Go `Serve`
    returns a fatal accept error.
@@ -227,6 +265,32 @@ without enabling a required API.
 The nested inner task is deliberate: after a shutdown timeout or fatal accept,
 the supervisor can be detached yet still await and log an inner connection
 panic. A bare detached Hyper task would silently discard its `JoinError`.
+
+### Whole-request deadline adapter
+
+- Wrap the Tokio stream in a safe `AsyncRead`/`AsyncWrite` adapter and then in
+  `TokioIo`; Hyper continues to own all HTTP parsing and encoding. Start the
+  initial absolute read deadline when the connection begins reading.
+- When the service receives a request, mark it active and construct the handler
+  response before the post-handler drain. Preserve that buffered response even
+  when an incomplete body reaches the read deadline. For a known length, drain
+  below Go's 256 KiB tolerance and force close at exactly 256 KiB or above; for
+  unknown/chunked bodies, use `http_body_util::Limited` to detect bytes beyond
+  the tolerance. Once an empty or drained body completes, clear the read
+  deadline so handler and write work remain unbounded, as in the oracle.
+- After the response is ready, arm the idle deadline on Hyper's next transport
+  read. Once four externally visible bytes of the next request have arrived,
+  reset to a fresh whole-request deadline. The executable probe passed
+  slow-head, delayed-head plus incomplete-body, idle expiry,
+  idle-plus-fresh-request, and 350 ms handler cases with a scaled 200 ms budget.
+  This is only conditional guidance: the adapter fails when Hyper's preceding
+  read privately buffered one to three bytes of that next request, as recorded
+  in the authority gate below.
+- Keep lifecycle state in a small shared state object used only by the transport,
+  service, and pinned connection driver. The probe distinguished never-active,
+  active, and idle cancellation, drained active work, closed idle work, retained
+  a new connection through the shutdown deadline, and reached zero owned tasks
+  after eventual connection completion.
 
 ### Routing and synchronous metrics work
 
@@ -239,7 +303,10 @@ panic. A bare detached Hyper task would silently discard its `JoinError`.
   needed by a `'static` closure and run **registry gather, selected encoder,
   gzip compression, and final byte-buffer construction together** inside
   `tokio::task::spawn_blocking`. Await that handle asynchronously, map/log its
-  `JoinError` as a request/connection failure, and return a full in-memory body.
+  `JoinError` as a request/connection failure, and return an owned in-memory
+  buffer. For either identity or gzip, expose payloads of at most 2048 bytes
+  through an exact-size body and larger payloads through an unknown-size
+  one-frame body. This reproduces Go's content-length/chunked threshold.
   Do not gather on the runtime thread and offload only compression afterward.
 - The required package test must use `#[tokio::test(flavor = "current_thread")]`:
   hold one synthetic gather/encode/gzip closure for at least 250 ms and prove a
@@ -260,97 +327,92 @@ panic. A bare detached Hyper task would silently discard its `JoinError`.
 | Connection panic/cancellation `JoinError` | Supervisor logs it; isolate and continue accepting. A supervisor panic is also logged/reaped as per-connection, never server-fatal. |
 | Transient accept error | Log, retain all connections, perform bounded exponential backoff, then retry. |
 | Fatal accept/control error | Drop the listener, call `JoinSet::detach_all` **without cancelling connection tokens**, and return the fatal error. This prevents `JoinSet` drop from aborting active connections. |
-| Cancellation during accept | Stop accepting, drop the listener, signal connection shutdown according to the finally authorized state model, and begin the five-second deadline. |
+| Cancellation during accept | Stop accepting, drop the listener, apply the probed state-aware connection shutdown model, and begin the five-second deadline. |
 | Cancellation during backoff | Drop the listener and begin that same deadline, but preserve the remaining backoff wait before server completion. Go's pre-drain listener wait can outlive the context, and quiescence checked afterward can still return success. |
 | Fatal accept and cancellation simultaneously ready | Use unbiased selection and permit either Go-observable branch: fatal error with detached connections, or cancellation followed by Shutdown semantics. Do not impose an undocumented fixed precedence. |
-| Graceful completion inside five seconds | Drain `JoinSet::join_next` until empty, logging all per-connection outcomes, then return success subject to the new/idle-state and listener-close gates. |
-| Five-second drain expiry | Call `JoinSet::detach_all` before drop and return a typed shutdown deadline error. Already-signalled connections and started blocking work continue in the background, matching Go `Shutdown`. |
+| Graceful completion inside five seconds | Drain `JoinSet::join_next` until empty, logging all per-connection outcomes, then return success subject to the listener-close gate. This path must leave zero owned tasks. |
+| Five-second drain expiry | Call `JoinSet::detach_all` before drop and return a typed shutdown deadline error. Already-signalled connections and started blocking work continue after return, matching Go `Shutdown`; tests must prove they terminate eventually and are not lost ownership leaks. |
 
 Do not use `JoinSet::shutdown` on the graceful path: it aborts tasks. Do not
 drop a populated set: its `Drop` implementation aborts tasks. Do not make any
 connection `JoinError` server-fatal.
 
-## Explicit behavior-parity authority gates
+## Remaining behavior-parity authority gates
 
-### 1. Whole-request and keep-alive deadlines — unresolved
+### 1. Whole-request deadline across Hyper-private pipelining — unresolved
 
-Go's five-second `ReadTimeout` is observably stronger and differently phased
-than Hyper's header timer:
+Go's keep-alive loop performs a four-byte peek before clearing its idle deadline
+and starting a fresh whole-request deadline. The exact differential probe put a
+complete first request and `GET`—three bytes of the next request—in one socket
+write. After the first response, it waited 150 ms, wrote the fourth byte, waited
+another 150 ms, and completed the request. With a scaled 200 ms timeout, Go
+served the second request: its buffered three bytes contributed to the peek, so
+the fourth byte started a fresh 200 ms budget.
 
-- one absolute budget covers the first byte of a request head through any body
-  reads/drain;
-- an idle keep-alive receives up to five seconds before its next request;
-- after the first four bytes of that request arrive, it receives a fresh
-  five-second header-plus-body budget.
+Hyper may read those three bytes into its private parser buffer while completing
+the first request. The safe transport adapter cannot observe that request
+boundary or recover the buffered-byte count. It therefore saw only the fourth
+byte after entering idle state, retained the original idle deadline, and closed
+before the remainder arrived. The Rust characterization test asserts this
+failure rather than treating its passing test process as behavior parity.
 
-Hyper `header_read_timeout(5s)` covers only the head and begins while polling
-the next head, so idle time consumes the header budget and body reads are
-unbounded by it. The metrics handler ignores request bodies, but Go drains a
-small ignored body under the same deadline before connection reuse/response
-completion; the focused probe made that observable.
+No public Hyper API exposes the unread byte count at this boundary. Parsing HTTP
+inside the transport adapter would duplicate Hyper's parser; forcing every head
+read to one byte would impose a pathological I/O policy merely to prevent
+over-read. Neither is an idiomatic adapter boundary. Approval requires a public
+parser-state hook, a different parser/server that passes every lifecycle gate,
+or an explicit human parity exception for this deadline divergence.
 
-No faithful deadline I/O layer using only the selected public APIs was proved.
-Before this decision can be approved, one of these must be recorded:
+### 2. Request limits — unresolved and technically blocked
 
-1. a separately reviewed implementation/probe that reproduces all three phases,
-   including ignored bodies and keep-alive reset; or
-2. a human parity exception that explicitly accepts header-only timing, earlier
-   keep-alive closure, and unbounded ignored-body read/drain differences.
+Go applies one shared one-MiB-plus-slop limit to the request line and headers.
+The socket probe sent a valid 70 KiB target and reached the Go handler. Hyper
+returned `414` before service invocation because `MAX_URI_LEN` is privately
+fixed at `u16::MAX - 1`. Conversely, with `max_buf_size(1_052_672)`, Hyper
+accepted a header value 8192 bytes above one MiB that Go rejected with `431`;
+its adaptive read buffer can expose capacity beyond the requested next read, and
+there is no public HTTP/1 aggregate-header-size setting. `max_headers` fixes only
+the independent 100-field default and preallocates proportional scratch space.
 
-A slow-header test alone cannot close this gate.
-
-### 2. Never-active connection shutdown — unresolved
-
-Go distinguishes a newly accepted connection from an idle keep-alive
-connection during `Shutdown`. It closes an idle connection promptly, but a
-connection that has not completed its first request remains `StateNew` until it
-ages past five seconds or its five-second read deadline fires. The scaled Go
-probe kept such a connection open through a 150 ms shutdown deadline and closed
-it at about the 300 ms read boundary.
-
-Hyper's public HTTP/1 graceful API exposes no new/active/idle state. The exact
-Rust probe called `graceful_shutdown()` on a polled, never-active connection and
-observed immediate EOF. Blanket per-connection signalling therefore fails
-shutdown parity independently of the normal header/body/keep-alive deadline
-gate.
-
-Before approval, either prove and separately review a state-aware public-API
-model that closes idle connections, drains active handlers, and preserves the
-first-request window for new connections, or obtain a human parity exception
-accepting immediate closure of never-active connections. Tests must distinguish
-all three states; an in-flight-handler-only drain test cannot close this gate.
+These are deterministic selected-stack failures. Approval requires either a
+Hyper release/public configuration that enforces the oracle range, a
+different server/parser that passes all lifecycle gates, or a human parity
+exception explicitly accepting the narrower request-target limit. Reimplementing
+HTTP parsing in the package is not an idiomatic adapter boundary.
 
 ### 3. Listener-close errors — unresolved
 
 Go `Shutdown` returns the first listener-close error after a successful drain;
 Tokio's standard `TcpListener` closes by RAII and exposes no fallible close
-result. Go's precise precedence is subtler than the public summary: it records
-the close error, waits for listener-serving goroutines without consulting the
-context, then checks quiescence before selecting the context. Thus an already
-expired context may still yield the close result (including success) when the
-server is quiescent, while a non-quiescent drain returns the context error. A
-fatal `Serve` return ignores Go's deferred listener-close error, so only the
-cancellation/Shutdown path is affected.
+result. The Go probe also confirmed the precise precedence: with a quiescent
+server, the close error wins even when the context is already expired. A fatal
+`Serve` return still ignores its deferred listener-close error.
 
-Before approval, either prove a safe owned-listener abstraction that reports a
-real close failure without double-close/file-descriptor reuse hazards, or record
-a human parity exception allowing Tokio's unreportable RAII close. The
-implementation must not silently claim exact shutdown error parity.
+The frozen package creates its own concrete TCP listener, so test injection is
+not a production solution. Approval requires either a separately approved safe
+owned-listener abstraction that reports the real platform close result without
+double-close/file-descriptor reuse hazards, or a human parity exception allowing
+Tokio's unreportable RAII close. The implementation must not claim exact
+shutdown error parity.
 
-Under [`PORTING.md`](../../PORTING.md), these are authority gates rather than
-researcher-discretion exceptions: observable parity is required, and conflicts
-that cannot be adapted safely require human escalation. This adversarial review
-therefore cannot accept any of the three exceptions on the project's behalf.
+Under [`PORTING.md`](../../PORTING.md), the researcher cannot grant these
+exceptions. The never-active shutdown question and ordinary, non-prebuffered
+deadline cases are technically closed by the public-API probe, but the exact
+partial-pipeline deadline case remains blocked.
 
-## Known limitations and cross-record conflict
+## Known limitations
 
-- The approved [`prometheus-metrics.md`](prometheus-metrics.md) currently says
-  the HTTP layer must negotiate zstd. Go 1.26.1 source plus a whole-tree import
-  scan show that the frozen program does not activate `promhttp/zstd`; actual
-  behavior is identity/gzip. This record therefore selects flate2 for gzip and
-  no zstd crate. The controller must reconcile that conflicting obligation
-  before creating a ready package packet; this researcher does not own the
-  other record.
+- The approved [`prometheus-metrics.md`](prometheus-metrics.md) now agrees with
+  the frozen oracle: identity/gzip negotiation with identity fallback and no
+  active zstd encoder. No cross-record compression conflict remains.
+- Hyper's `max_headers` can remove its 100-field default, but a very large value
+  allocates correspondingly large parser scratch space. The specified
+  `262_144` value must be stress-tested under concurrent scrapes; it repairs
+  neither aggregate head size nor the URI cap.
+- Hyper's private read buffer can contain part of the next request before the
+  service/transport adapter learns that the current request is complete. The
+  adapter instructions above do not authorize parser duplication or one-byte
+  request-head reads as workarounds.
 - Hyper and Tokio contain maintained internal unsafe code. The selected package
   integration uses safe public APIs; this is not a claim that the transitive
   graph is unsafe-free.
@@ -379,20 +441,29 @@ cargo tree --offline -e features --manifest-path /tmp/http-runtime-rust-probe/Ca
 cargo check --offline --target x86_64-unknown-linux-gnu --all-targets --manifest-path /tmp/http-runtime-rust-probe/Cargo.toml
 cargo check --offline --target x86_64-apple-darwin --all-targets --manifest-path /tmp/http-runtime-rust-probe/Cargo.toml
 cargo check --offline --target x86_64-pc-windows-gnu --all-targets --manifest-path /tmp/http-runtime-rust-probe/Cargo.toml
-cargo audit --no-fetch --file /tmp/http-runtime-rust-probe/Cargo.lock
+cargo audit --file /tmp/http-runtime-rust-probe/Cargo.lock
 ```
 
-The exact API probe compiled `http1::Builder`, `TokioTimer`, featureless
-`CancellationToken`, and pure-Rust gzip. Its current-thread test proved a 250 ms
-gather/encode/gzip closure did not prevent a concurrent request from completing
-inside 75 ms; its shutdown test proved Hyper graceful close immediately ends a
-never-active connection. Linux IPv4/IPv6 bind-before-cancel tests and Linux,
-Intel-macOS, and Windows-GNU all-target checks passed. The cross-target lock
-contained 35 packages including the probe (34 third-party); the native normal
-graph resolves 31 third-party packages on Linux/macOS and 32 on Windows. Cargo
-metadata found only permissive licenses. The cached RustSec database contained
-1,211 advisories at commit `d0861df`, with no vulnerability or informational
-finding.
+The exact API probe compiled the safe Tokio `AsyncRead` adapter, `TokioIo`,
+HTTP/1 `Builder`, featureless `CancellationToken`, and pure-Rust gzip. Eight
+Rust tests passed. Seven exercise matching or required behavior: ordinary
+shared head/body and pipelined deadlines; preservation of the
+already-constructed response on incomplete-body timeout; the known-length
+256 KiB boundary; idle expiry and a fresh request budget; no write timeout;
+configured header-count/size behavior and the 70 KiB URI result;
+new/active/idle cancellation; current-thread progress during 250 ms
+`spawn_blocking`; clean `JoinSet` drain and tracked eventual completion after
+timeout detachment; gzip/identity negotiation including ties, repeated fields,
+and malformed quality values; and the 2048/2049-byte socket framing boundary.
+The eighth is a negative characterization: it passes by proving that Hyper's
+private partial-pipeline buffer causes the selected adapter to close a request
+that Go serves.
+Linux native tests plus Linux, Intel-macOS, and Windows-GNU all-target checks
+passed; macOS and Windows runtime behavior is not claimed without native CI.
+The cross-target lock contained 35 packages including the probe. Cargo metadata
+found only permissive licenses. A fresh RustSec fetch contained 1,211 advisories at commit
+`d0861df1eab469d3c58d6b836ce48b5766e5f217`, with no vulnerability or
+informational finding.
 
 Go characterization passed with:
 
@@ -403,16 +474,23 @@ env GOCACHE=/tmp/http-runtime-go126-cache \
   /opt/go1.26.1/bin/go test -mod=mod -v ./...
 ```
 
-The expanded Go suite also probed compression fallback, CONNECT routing,
-never-active shutdown, and cancellation during a 320 ms accept backoff. After
-all three authority gates are resolved, the package implementation still
-must add deterministic tests for:
+The expanded Go suite also probed compression fallback and raw framing, CONNECT
+routing, request limits, ignored-body drain, lack of a write timeout,
+listener-close precedence, never-active shutdown, privately buffered partial
+pipelining, and cancellation during a 320 ms accept backoff. If the three
+remaining authority gates are resolved, the package implementation still must
+add deterministic tests for:
 
 - concrete IPv4 and IPv6 bind/serve and fixed port `51090`;
 - occupied-port propagation with an already-cancelled token;
 - the full ServeMux matrix above, including CONNECT and `OPTIONS *`;
+- 101 fields, 900 KiB/over-one-MiB request heads, and the finally authorized
+  request-target behavior;
 - the exact gzip/identity quality matrix, zstd-only fallback, wildcard fallback,
-  and the oracle's identity fallback when every recognized encoding has `q=0`;
+  ties, repeated fields, malformed quality values, the oracle's identity
+  fallback when every recognized encoding has `q=0`, and
+  the 2048/2049-byte content-length versus chunked framing boundary for both
+  identity and gzip;
 - 5 ms-through-1 s transient accept retry, reset after success, fatal accept
   propagation, and cancellation during backoff;
 - malformed/disconnected connection errors plus handler and blocking-task
@@ -422,8 +500,8 @@ must add deterministic tests for:
   clean in-flight drain, typed five-second expiry, post-timeout task
   continuation, simultaneous fatal/cancel selection, and every JoinSet path in
   the ownership table;
-- the finally authorized deadline behavior and listener-close behavior on
-  Linux, macOS, and Windows CI.
+- the probed deadline behavior and finally authorized listener-close behavior
+  on Linux, macOS, and Windows CI.
 
 ## Review
 
@@ -431,12 +509,12 @@ must add deterministic tests for:
 | --- | --- |
 | Critical capability | Networking/runtime/compression; a second fresh adversarial dependency review is mandatory |
 | Prior reviewer | **REJECTED** proposal `1ab24e4`; all six stated findings are addressed in this revision |
-| Fresh reviewer | Completed independently on `f927d1bf224142754bc2f818b88fdb46d7d70686` with primary sources and executable Go/Rust probes |
-| Challenge coverage | All three parity gates; accept classification/backoff; connection panic isolation; current-thread blocking; exact feature/lock graph; method/path/query/cleaning/escaping/307 routing; every task/exit path; cancellation/error precedence; gzip/identity/zstd fallback; IPv4/IPv6; Linux/macOS/Windows targets; Rust 1.96; licenses; RustSec |
-| Final reviewer result | **REJECTED for approval**. The family selection survives, but the proposed shutdown model was not clean: cancellation incorrectly interrupted accept backoff, and blanket Hyper graceful signalling failed never-active connection parity. The record now corrects the former and makes the latter a third explicit authority gate. |
+| Fresh reviewer | Read-only adversarial review on this revision's working tree at integration base `bb1d841c`; **REJECT dependency approval, APPROVE committing this blocked decision** |
+| Challenge coverage | Hyper-private partial-pipeline buffering; request limits; whole-request/idle timeouts; ignored-body drain; new/active/idle shutdown; accept/cancellation/error precedence; every task path; gzip/identity negotiation and 2048-byte framing boundary; platforms; versions/features; Rust 1.96; licenses; RustSec |
+| Final reviewer result | **REJECTED**. Four exact blockers remain: hidden partial-pipeline bytes, 70 KiB request-target rejection, oversized aggregate-head acceptance, and unreportable listener-close result/precedence. The reviewer found no idiomatic public Hyper adapter for the first blocker and judged this blocked record truthful and commit-worthy. |
 | Affected package packets | `ployz-internal-machine-metrics`; no prose package packet exists at this integration base |
 
-The controller must not mark this dependency `approved` until all three
-authority gates and the Prometheus compression conflict are resolved in records
-owned by the authorized roles. A future clean technical re-review alone cannot
-grant the required human parity exceptions.
+The controller must not mark this dependency `approved` until the
+partial-pipeline deadline, both request-limit divergences, and listener-close
+authority gates are resolved. A clean technical re-review alone cannot grant
+the required human parity exceptions.
