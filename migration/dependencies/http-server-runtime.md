@@ -549,9 +549,9 @@ add deterministic tests for:
 | --- | --- |
 | Critical capability | Networking/runtime/compression; a second fresh adversarial dependency review is mandatory |
 | Prior reviewers | **REJECTED** proposal `1ab24e4`; the next fresh review rejected candidate `7dc92fa` because slow-handler/incomplete-body ordering, 1/2/3-byte prefetched pipelining, chunked drain boundaries, response-write/idle timing, and bounded task-reclamation evidence were incomplete. This revision addresses those record-evidence findings and preserves every demonstrated dependency blocker. |
-| Fresh reviewer | Pending on the corrected owned-file commit. |
+| Fresh reviewer | Read-only adversarial review of exact corrected commit `87a2c7cb2d9fc47bca07a78eff1e98fb003d2a9c`; **ACCEPT committing this blocked decision**, with no actionable finding. The reviewer independently reran the full Go suite, all nine Rust tests, warnings-denied Clippy, three target checks, and RustSec. |
 | Challenge coverage | Hyper-private one/two/three-byte partial-pipeline buffering; backpressured response completion versus idle arming; known-length and chunked-plus-trailer drain boundaries; request limits; truly disarmed whole-request/idle timeouts; new/active/idle shutdown; accept/cancellation/error precedence; bounded task-reclamation claims; gzip/identity negotiation and 2048-byte framing boundary; platforms; versions/features; Rust 1.96; licenses; RustSec |
-| Final reviewer result | Pending. Dependency approval remains rejected because five exact scenario classes fail: private partial-pipeline bytes, response-completion/idle timing, 70 KiB request-target rejection, oversized aggregate-head acceptance, and unreportable listener-close result/precedence. |
+| Final reviewer result | **ACCEPT blocked record; REJECT dependency approval.** Five exact scenario classes fail: private partial-pipeline bytes, response-completion/idle timing, 70 KiB request-target rejection, oversized aggregate-head acceptance, and unreportable listener-close result/precedence. No parity exception was granted. |
 | Affected package packets | `ployz-internal-machine-metrics`; no prose package packet exists at this integration base |
 
 The controller must not mark this dependency `approved` until the private-byte
