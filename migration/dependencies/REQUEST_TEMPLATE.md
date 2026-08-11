@@ -4,12 +4,13 @@
 | --- | --- |
 | Status | `research-required` |
 | Capability | `<domain capability without a preferred crate>` |
-| Waiting packets | `<packet paths>` |
+| Waiting packages | `<Go package paths>` |
 
 ## Required behavior
 
-List the exact package behavior-contract rows this dependency must enable,
-including observable limitations. Link each requirement to oracle evidence.
+List the exact observable package behavior this dependency must enable,
+including observable limitations. Link each requirement to oracle evidence,
+tests, or callers.
 
 ## Constraints
 
@@ -27,4 +28,3 @@ candidate, not a decision.
 ## Completion
 
 Link the resulting decision record and required adversarial reviewer result.
-

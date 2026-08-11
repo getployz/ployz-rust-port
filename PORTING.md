@@ -18,8 +18,8 @@ Keep these stable:
 - observable platform behavior, flaws, and limitations.
 
 Rust may change modules, file layout, functions, types, ownership, concurrency,
-and internal algorithms. Record traceability in tests and the package packet,
-not through Go-shaped compatibility helpers.
+and internal algorithms. Preserve traceability through tests and review
+evidence, not per-package prose or Go-shaped compatibility helpers.
 
 ## Package state machine
 
@@ -27,8 +27,8 @@ Only the controller changes package state in `migration/PACKAGES.tsv`.
 
 ```text
 catalogued
-    -> contract-ready
-    -> dependency-blocked -> contract-ready
+    -> waiting-internal
+    -> dependency-blocked
     -> ready
     -> implementing
     -> reviewing
@@ -36,28 +36,30 @@ catalogued
     -> accepted
     -> integrated
 
-any non-terminal state -> blocked -> prior state
 ```
 
-`blocked` is an exceptional state for missing authority, ambiguous observable
-behavior, unavailable verification infrastructure, or a dependency decision
-with no passing candidate. Record the exact blocker in the package packet.
+The exact state artifacts are defined by `migration/CONTROLLER.md`. Record
+blockers in `migration/PACKAGES.tsv` and dependency decision records.
 
-## 1. Prepare the package packet
+## 1. Prepare the dynamic assignment
 
-The controller follows `migration/CONTROLLER.md` and creates a packet from
-`migration/PACKAGE_TEMPLATE.md` under `migration/packages/`.
+The controller derives readiness from `migration/PACKAGES.tsv`, the Go import
+DAG, and `migration/DEPENDENCIES.tsv`. It builds each fresh worker prompt at
+launch time with the package path, exclusive crate path, exact base commit,
+direct dependencies and callers, approved decisions, and acceptance commands.
+The worker reads the frozen oracle source and tests directly. No per-package
+Markdown packet is created.
 
 Completion criterion: every Go file in the package, direct caller, exported
 symbol, upstream test, platform file, observable limitation, and external
-capability is accounted for. The packet has no unresolved behavior question.
+capability is accounted for by the assignment, tests, or compact registries.
 
 ## 2. Pass the dependency gate
 
 For every external capability, the controller checks
 `migration/DEPENDENCIES.tsv`.
 
-- An approved decision is added to the package packet.
+- An approved decision is included in the dynamic worker assignment.
 - A missing decision creates a dependency request and dispatches a fresh
   research agent using `migration/dependencies/README.md`.
 - Equivalent requests share one decision. Package agents do not repeat research.
@@ -68,14 +70,19 @@ passing candidates, the default choice is the most idiomatic and widely adopted
 Rust solution. The selected dependency shapes the Rust design; it is not hidden
 behind an imitation of the Go dependency API.
 
+Before evaluating a capability, search its external API symbols repo-wide
+(excluding explicitly out-of-scope paths), then trace every command path and
+direct consumer. Package imports or compilation reachability alone neither
+prove nor disprove observable capability reachability.
+
 Completion criterion: every non-standard dependency and external tool has an
-approved decision referenced by the packet. No dependency question remains with
-the implementor.
+approved decision referenced by the assignment. No dependency question remains
+with the implementor.
 
 ## 3. Implement one migration crate
 
-The controller gives the implementor one ready packet and an isolated branch or
-worktree. The implementor changes only the packet's owned crate directory.
+The controller gives the implementor one dynamic assignment and an isolated
+branch or worktree. The implementor changes only the assigned crate directory.
 
 The implementor:
 
@@ -85,8 +92,8 @@ The implementor:
    behavior the upstream tests do not cover.
 3. Implements until the crate passes formatting, targeted tests, targeted
    all-target checks, and warnings-denied Clippy.
-4. Completes every traceability row and performs a source-to-behavior
-   self-review.
+4. Performs a source-to-behavior self-review against the oracle, tests, and
+   callers.
 5. Commits only owned crate files and returns the commit plus deliberate
    behavior mappings to the controller.
 
@@ -94,16 +101,17 @@ If implementation exposes a new dependency capability, the implementor stops
 and returns a dependency request. It does not select a crate or build a local
 substitute.
 
-Completion criterion: no production placeholder remains; every traceability row
-points to a passing Rust test; targeted acceptance commands pass.
+Completion criterion: no production placeholder remains; every required
+behavior has passing test or executable evidence; targeted acceptance commands
+pass.
 
 ## 4. Review and fix
 
 The controller dispatches two fresh agents in parallel with
 `migration/REVIEW_TEMPLATE.md`:
 
-- the parity reviewer compares the packet, oracle, callers, tests, and Rust
-  behavior;
+- the parity reviewer compares the dynamic assignment, oracle, callers, tests,
+  and Rust behavior;
 - the Rust reviewer checks idiomatic design, dependency usage, safety, async and
   platform behavior, errors, and maintainability.
 
@@ -143,5 +151,5 @@ wave is `integrated`.
 Ask for a decision only when no dependency passes hard gates, top dependency
 candidates remain materially tied, observable Go behavior is unresolved after
 checking callers and tests, parity conflicts with security or licensing, or
-required infrastructure cannot be supplied. Record the decision in the packet
-or dependency record before work resumes.
+required infrastructure cannot be supplied. Record the decision in the package
+registry or dependency record before work resumes.

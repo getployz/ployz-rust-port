@@ -34,5 +34,4 @@ follow this dependency's design rather than reproduce the Go dependency API.
 ## Review
 
 Record the fresh adversarial dependency reviewer for critical capabilities, its
-findings, fixes, and final result. List every affected package packet.
-
+findings, fixes, and final result. List every affected package.

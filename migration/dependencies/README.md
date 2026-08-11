@@ -6,7 +6,7 @@ capability; do not repeat research per package.
 
 ## Trigger
 
-Create a dependency request when a packet or implementation needs a Rust crate,
+Create a dependency request when a dynamic assignment or implementation needs a Rust crate,
 system library, executable, service, generated binding, or direct protocol
 implementation that has no approved row in `migration/DEPENDENCIES.tsv`.
 
@@ -18,7 +18,7 @@ Create `migration/dependencies/requests/<capability>.md` from
 `migration/dependencies/REQUEST_TEMPLATE.md` with:
 
 - the domain capability, stated without a preferred crate;
-- required observable behavior and limitations from packet rows;
+- required observable behavior and limitations from the oracle, tests, and callers;
 - supported platforms and targets;
 - sync, async, cancellation, performance, and safety constraints;
 - allowed licenses and Rust/toolchain constraints;
@@ -68,11 +68,10 @@ Required features and configuration:
 License and security notes:
 Known limitations:
 Verification command or probe:
-Affected package packets:
+Affected packages:
 Reviewer result when required:
 ```
 
 The controller validates the record, updates `migration/DEPENDENCIES.tsv`, and
-adds the decision to waiting packets. Only the integrator or dependency steward
-edits root workspace dependency versions and the lockfile.
-
+makes the decision available to waiting dynamic assignments. Only the integrator
+or dependency steward edits root workspace dependency versions and the lockfile.
