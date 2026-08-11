@@ -22,7 +22,7 @@ func TestPloyzLogOracle(t *testing.T) {
 		"ok", true, "signed", int64(-7), "unsigned", uint64(8), "small", 0.00001,
 		"large", 1000000.0, "inf", math.Inf(1), "time", "removed", "level", "removed", "msg", "removed")
 	logger.Info("no fields")
-	logger.Warn("warning", "unicode", "hello-world", "combining", "x\u0301", "zero_width", "a\u200bb")
+	logger.Warn("warning", "unicode", "hello-world", "combining", "x\u0301", "go_unassigned", "x\u088f", "zero_width", "a\u200bb")
 	logger.Error("failure", "err", fmt.Errorf("bad value: %d", 3))
 	slog.New(handler).WithGroup("").Info("root empty", "key", "value")
 	slog.New(handler).WithGroup("parent").WithGroup("").Info("nested empty", "key", "value")

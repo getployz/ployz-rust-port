@@ -133,6 +133,7 @@ fn rust_output() -> String {
         tracing::warn!(
             unicode = "hello-world",
             combining = "x\u{301}",
+            go_unassigned = "x\u{88f}",
             zero_width = "a\u{200b}b",
             "warning"
         );

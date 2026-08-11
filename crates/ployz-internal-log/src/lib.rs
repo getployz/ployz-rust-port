@@ -30,6 +30,8 @@ use tracing_subscriber::layer::{Context, Layer, Layered};
 use tracing_subscriber::registry::{LookupSpan, Registry};
 use tracing_subscriber::{Registry as RegistrySubscriber, reload};
 
+mod unicode_print;
+
 const GROUP_FIELD: &str = "ployz.group";
 
 /// One structured field in a low-level log record.
@@ -468,24 +470,8 @@ fn needs_quoting(value: &str) -> bool {
             || character == '='
             || character == '"'
             || character.is_control()
-            || !is_printable(character)
+            || !unicode_print::is_printable(character)
     })
-}
-
-fn is_printable(character: char) -> bool {
-    if character.is_ascii() {
-        return true;
-    }
-
-    // `str::escape_debug` preserves Unicode grapheme extenders after a base
-    // character, while `char::escape_debug` escapes them in isolation. Go's
-    // unicode.IsPrint includes those combining marks, so probe in that context.
-    let mut probe = String::with_capacity(1 + character.len_utf8());
-    probe.push('x');
-    probe.push(character);
-    let mut escaped = probe.escape_debug();
-    debug_assert_eq!(escaped.next(), Some('x'));
-    escaped.next() != Some('\\')
 }
 
 fn append_go_quote(output: &mut String, value: &str) {
@@ -506,7 +492,7 @@ fn append_go_quote(output: &mut String, value: &str) {
                 write!(output, "\\x{:02x}", character as u32)
                     .expect("writing to String cannot fail");
             }
-            character if !is_printable(character) => {
+            character if !unicode_print::is_printable(character) => {
                 use fmt::Write as _;
                 if character <= '\u{FFFF}' {
                     write!(output, "\\u{:04x}", character as u32)
