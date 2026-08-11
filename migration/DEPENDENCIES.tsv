@@ -7,10 +7,10 @@ async-stream-network-runtime	blocked	migration/dependencies/async-stream-network
 synchronous-outbound-http-client	blocked	migration/dependencies/synchronous-outbound-http-client.md	-	-	-	yes	internal/dns	-
 interactive-terminal-runtime	blocked	migration/dependencies/interactive-terminal-runtime.md	-	-	-	yes	internal/cli/tui	-
 terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	console;comfy-table	0.16.4;8.0.0	MIT	yes	internal/cli/tui	-
-terminal-output-profile	adversarial-review	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	/root/terminal_output_research/terminal_output_final_fresh_review
+terminal-output-profile	blocked	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	-
 http-server-runtime	blocked	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
 protobuf-codegen-runtime	blocked	migration/dependencies/protobuf-codegen-runtime.md	-	-	-	yes	internal/machine/api/pb	-
-async-grpc-client-server	research	migration/dependencies/async-grpc-client-server.md	tonic;tonic-build;tokio;tokio-stream;tower;http;bytes;hyper-util	0.14.6;0.14.6;1.53.1;0.1.19;0.5.3;1.5.0;1.12.1;0.1.20	MIT	yes	internal/machine/api/pb,internal/grpcversion	/root/async_grpc_research
+async-grpc-client-server	adversarial-review	migration/dependencies/async-grpc-client-server.md	tonic;tonic-build;tokio;tokio-stream;tower;http;bytes;hyper-util	0.14.6;0.14.6;1.53.1;0.1.19;0.5.3;1.5.0;1.12.1;0.1.20	MIT	yes	internal/machine/api/pb,internal/grpcversion	/root/async_grpc_research/async_grpc_fresh_adversarial_review
 grpc-metadata-interceptor	research	migration/dependencies/grpc-metadata-interceptor.md	-	-	-	yes	internal/grpcversion	/root/grpc_metadata_research
 unix-account-lookup-chown	blocked	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	-
 docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	-
