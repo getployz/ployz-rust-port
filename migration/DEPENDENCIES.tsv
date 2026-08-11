@@ -15,4 +15,4 @@ grpc-metadata-interceptor	queued	migration/dependencies/grpc-metadata-intercepto
 unix-account-lookup-chown	blocked	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs	-
 docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	-
 http2-tls-client	blocked	migration/dependencies/http2-tls-client.md	reqwest	0.13.4	MIT OR Apache-2.0	yes	internal/corrosion	-
-userspace-wireguard-tunnel	adversarial-review	migration/dependencies/userspace-wireguard-tunnel.md	-	-	-	yes	internal/machine/network/tunnel	/root/wireguard_research/decision_commit_review
+userspace-wireguard-tunnel	blocked	migration/dependencies/userspace-wireguard-tunnel.md	-	-	-	yes	internal/machine/network/tunnel	-
