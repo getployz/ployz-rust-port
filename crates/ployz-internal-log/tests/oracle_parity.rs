@@ -135,6 +135,8 @@ fn rust_output() -> String {
             combining = "x\u{301}",
             go_unassigned = "x\u{88f}",
             zero_width = "a\u{200b}b",
+            replacement = "x\u{fffd}",
+            "bad\u{fffd}key" = "value",
             "warning"
         );
         tracing::error!(err = %format_args!("bad value: {}", 3), "failure");

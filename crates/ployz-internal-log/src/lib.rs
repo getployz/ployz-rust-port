@@ -469,6 +469,7 @@ fn needs_quoting(value: &str) -> bool {
         character.is_whitespace()
             || character == '='
             || character == '"'
+            || character == '\u{FFFD}'
             || character.is_control()
             || !unicode_print::is_printable(character)
     })
