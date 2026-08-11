@@ -2,37 +2,44 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked`. Target-only `libc 0.2.189` is the leading native account candidate and package-owned unsafe FFI is reviewable under repository policy, not prohibited. Linux native execution and both macOS cross-checks pass, but no native macOS amd64/arm64 environment is available to verify `getpwuid_r`/Open Directory behavior. The critical native dependency cannot pass its platform gate without that runtime evidence and fresh exact review. |
+| Status | `blocked` only pending the required fresh exact critical dependency review. Native GitHub Actions run `31529008863` passed on macOS amd64 and arm64 at source commit `45ecd305c32860edace30dc07f1201d16d4166a9`; both architectures produced byte-identical Go 1.26.1 and Rust 1.96.0/libc 0.2.189 results for current and Directory Service accounts. Every non-review hard gate now passes. |
 | Capability | Resolve a user name to UID and primary GID, resolve a group name to GID, preserve the shipped account source and errors, and change pathname ownership while independently leaving either ID unchanged. |
-| Selected dependency and exact version | Complete selection is blocked. Cgo-free Linux conditional selection: `rustix = "=1.1.4"` with `default-features = false`, features `std,process`, project safe parser, and Rust 1.96 `std::os::unix::fs::chown`. Native conditional candidate: target/profile-scoped `libc = "=0.2.189"` with a project safe wrapper. |
-| Required configuration | Preserve every non-experimental build row. Define explicit files/native Cargo profiles: Linux release/Docker uses files; macOS always uses native; canonical/ordinary cgo-enabled Linux development uses native. Never choose by ambient linkage. Files must forbid rustix `use-libc` and `rustix_use_libc`; native libc remains gated on macOS runtime evidence and a second fresh critical review. |
-| License | Conditional rustix selection: `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`; project parser and Rust standard library otherwise. No native-NSS dependency is approved. |
+| Selected dependency and exact version | Pending the final review gate: cgo-free Linux uses `rustix = "=1.1.4"` with `default-features = false`, features `std,process`, a project safe files parser, and Rust 1.96 `std::os::unix::fs::chown`; native macOS and cgo-equivalent Linux use target/profile-scoped `libc = "=0.2.189"` with `default-features = false` behind a narrow project safe wrapper. |
+| Required configuration | Preserve every non-experimental build row with explicit files/native Cargo profiles: Linux release/Docker uses files; macOS always uses native; canonical/ordinary cgo-enabled Linux development uses native. Never choose by ambient linkage. The files profile must forbid rustix `use-libc` and external `rustix_use_libc`; only the native profile may enable direct libc account calls. |
+| License | rustix: `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`; libc: `MIT OR Apache-2.0`; project parser and Rust standard library otherwise. |
 | Research date | `2026-08-11` UTC |
-| Research base | `c943d3e84914ae24fcce4cc2a19f92c5c04599bf` |
-| Supersedes | The provisional Linux/macOS FFI split recorded through `0e7cf39c0a2768c0966f100fef3a01084f7ac025`. Package compilation alone did not prove `internal/fs` lookup reachability, but subsequent caller tracing proves a separate shipped `sshexec` path reaches native macOS `Current()`. |
+| Research base | `4e774f684afa3f44df83032fe7f84a20f22a9a73` |
+| Supersedes | The blocked native-macOS state recorded through `0cb7411`/`74f067b`. Package compilation alone did not prove `internal/fs` lookup reachability, but caller tracing proves a separate shipped `sshexec` path reaches native macOS `Current()`, and native run `31529008863` now supplies the missing amd64/arm64 Open Directory evidence. |
 | Request | Direct controller delegation for `upstream/uncloud/internal/fs` and discovered direct consumers `upstream/uncloud/internal/sshexec` and `upstream/uncloud/internal/machine` / their future Rust crates. |
 
-## Blocked decision
+## Native evidence complete; critical review pending
 
-Continue with a narrow target/profile-specific libc boundary; repository policy
-already defines unsafe FFI as a critical capability subject to research and a
-second fresh adversarial reviewer. No additional permission question is
-invented here.
+Continue with the narrow target/profile-specific libc boundary. Repository
+policy defines unsafe FFI as a critical capability subject to research and a
+second fresh adversarial reviewer. The native runtime blocker is resolved:
+manually dispatched GitHub Actions run
+[`31529008863`](https://github.com/getployz/ployz-rust-port/actions/runs/31529008863)
+executed the committed differential at exact head
+`45ecd305c32860edace30dc07f1201d16d4166a9` on both required native runner
+architectures. The probe source is unchanged between that head and this
+research base.
 
-The remaining hard blocker is unavailable native macOS runtime evidence.
-Cross-checks prove libc exposes the required symbols and layouts for both Apple
-targets, but cannot prove actual Open Directory records, returned status/result
-pointers, or both architectures' runtime behavior. Provide a native macOS
-amd64 and arm64 runner (or equivalent trusted CI that can execute the recorded
-probe), then rerun the probe and critical review. Until that passes, do not
-approve libc or unblock any waiting crate.
+Both jobs verified the native machine, exact Go/Rust toolchains, cgo, and the
+locked libc version before execution. On each runner, the current account was
+absent from `/etc/passwd` but resolved through both `dscl` and `dscacheutil`, so
+the result is not files-backend evidence mislabeled as Open Directory. Go and
+Rust then returned byte-identical TSV rows for `Current()`, lookup by current
+name and UID, and lookup of a second Directory Service account by name and UID.
+The only remaining dependency gate is the mandated fresh adversarial critical
+review of this exact evidence and selection. Until that review is clean, do not
+approve the registry row or unblock a waiting crate.
 
 All non-experimental observable rows remain in scope. The eventual build
 mapping must preserve files-only Linux releases, native macOS releases, and
 native NSS in cgo-enabled canonical/ordinary Linux development builds. There is
 no option in this record to discard one of those contracts.
 
-For the cgo-free profile, conditionally approve this exact design:
+For the cgo-free profile, select this exact design after the review gate:
 
 - obtain the real UID and GID with safe
   `rustix 1.1.4` process APIs using its raw Linux backend;
@@ -126,7 +133,7 @@ observable and must not be replaced by `$USER` or `/etc/passwd`.
 | GoReleaser `uncloudd` | Linux amd64/arm64 | Explicit `CGO_ENABLED=0`; fixed files, including cached-current shortcut/fallback | Conditional cgo-free profile: rustix IDs, safe Rust files parser, `std::chown`. |
 | Docker `uncloudd` | Linux amd64/arm64 in Alpine | Explicit `CGO_ENABLED=0`; container files, including cached-current shortcut/fallback | Same conditional cgo-free profile. |
 | GoReleaser Linux `uc` | Linux amd64/arm64 | `CGO_ENABLED=0`; empty-user `ssh+go` in both machine add/init reaches cached cgo-free `Current()` (files then environment fallback) | Conditional cgo-free profile is required for these CLI paths. They do not reach group lookup or chown. |
-| GoReleaser macOS `uc` | macOS amd64/arm64 | Explicit `CGO_ENABLED=1`; empty-user `ssh+go` in machine add/init reaches cached native `Current()` through `getpwuid_r`/Open Directory | Native profile required. libc candidate remains blocked only on native macOS runtime evidence/review. Files/environment-only behavior is wrong. |
+| GoReleaser macOS `uc` | macOS amd64/arm64 | Explicit `CGO_ENABLED=1`; empty-user `ssh+go` in machine add/init reaches cached native `Current()` through `getpwuid_r`/Open Directory | Native profile required. libc 0.2.189 passed the native amd64/arm64 differential; files/environment-only behavior remains wrong. |
 | `mise` `build:uncloudd-*` | Linux amd64/arm64 | Host-dependent because the task does not set CGO. On this Linux/amd64 host, amd64 was native glibc NSS and arm64 cross-build was files-only. | Preserve the resolved Go backend with an explicit Rust build feature/profile; do not infer it from linkage. Native libc on cgo-equivalent builds, files otherwise. |
 | Ordinary development `go run` / `go build` | Host target | Native on cgo-enabled Linux and Darwin; files on cgo-free non-Darwin Unix | Preserve with the corresponding explicit native/files Rust configuration. |
 
@@ -309,9 +316,9 @@ do not create subtly different error mappings.
 
 | Candidate | Behavior fit | Decision |
 | --- | --- | --- |
-| `rustix = "=1.1.4"` (`default-features = false`, `std,process`) + project files parser + `std::chown` | Safe real-UID/GID calls plus the exact cgo-free files/current contract. On Linux x86_64/aarch64 rustix defaults to its raw backend, independent of glibc/musl. | **Conditionally selected for the cgo-free profile.** Forbid `use-libc` and `rustix_use_libc`; audit final feature unification. |
+| `rustix = "=1.1.4"` (`default-features = false`, `std,process`) + project files parser + `std::chown` | Safe real-UID/GID calls plus the exact cgo-free files/current contract. On Linux x86_64/aarch64 rustix defaults to its raw backend, independent of glibc/musl. | **Selected for the cgo-free profile, pending only the fresh exact critical review.** Forbid `use-libc` and `rustix_use_libc`; audit final feature unification. |
 | Project-owned files parser + `std::chown` without an ID source | Cannot implement Go's current-user fallback because Rust `std` exposes no real UID/GID query. | Reject as incomplete. |
-| Target/profile-only `libc = "=0.2.189"` (`default-features = false`) with a narrow safe wrapper | Exact symbols/types compile for Linux and both Apple targets; native Linux fields match Go. It is the standard low-level Rust OS-ABI crate and can preserve macOS Open Directory plus cgo-enabled glibc NSS without leaking into files-only builds. | **Conditional native candidate.** Policy permits review, but native macOS amd64/arm64 probes and a second clean critical review are still required. |
+| Target/profile-only `libc = "=0.2.189"` (`default-features = false`) with a narrow safe wrapper | Exact symbols/types compile for Linux and both Apple targets; native Linux fields match Go; native macOS amd64/arm64 `getpwuid_r`/`getpwnam_r` results match Go byte-for-byte for current and Directory Service accounts. It is the standard low-level Rust OS-ABI crate and preserves Open Directory/glibc NSS without leaking into files-only builds. | **Selected for the native profile, pending only the fresh exact critical review.** |
 | `objc2-open-directory = "=0.3.2"` | Reaches Open Directory through a broader generated Objective-C/framework FFI surface, with a different query/error/string model from `getpwuid_r`. | Reject at behavior and integration-cost gates. |
 | `nix = "=0.31.3"`, `users = "=0.11.0"`, `uzers = "=0.12.2"`, `pwd = "=1.4.0"`, `etc-passwd = "=0.2.2"` | Wrap native libc lookup but alter or hide the exact bounded-ERANGE/error/result-pointer contract; if shared, also make cgo-free Linux native by accident. | Reject for this exact boundary; direct target/profile-only libc is smaller and more controllable once its remaining gates pass. |
 | General passwd/group parser crate | None evaluated preserves Go's Unicode trimming, invalid UTF-8, malformed-duplicate, signed-ID, streaming, late-I/O-error, and no-line-cap behavior. Adapting one is larger than the domain parser. | Reject at behavior and integration-cost gates. |
@@ -321,26 +328,26 @@ do not create subtly different error mappings.
 
 | Gate | Evidence | Result |
 | --- | --- | --- |
-| Required behavior | Cgo-free and native contracts are specified, including cache/fallback, native name/group queries, both SSH CLI callers, and machine's group fallback. Released macOS `uc` still lacks runtime differential evidence. | `blocked` on native macOS evidence |
-| License and security | Conditional rustix has the stated permissive licenses and safe ID APIs. libc 0.2.189 is MIT OR Apache-2.0; the exact isolated locks have no local RustSec finding. The probe demonstrates a narrow documented unsafe boundary, but final wrapper code still needs critical safety review. | `conditional pass`; final critical review pending |
-| Platforms and targets | Conditional rustix/files code checked on Linux x86_64 and aarch64 targets and is GNU/musl independent when raw backend selection is enforced. No native macOS amd64/arm64 Open Directory probe exists, and arm64 Linux runtime remains package/release acceptance. | `fail` for complete matrix |
+| Required behavior | Cgo-free and native contracts are specified, including cache/fallback, native name/group queries, both SSH CLI callers, and machine's group fallback. Native macOS current/name/UID behavior matches Go on amd64 and arm64 with a current account absent from `/etc/passwd`. | `pass` |
+| License and security | rustix has the stated permissive licenses and safe ID APIs. libc 0.2.189 is MIT OR Apache-2.0; the exact isolated locks have no local RustSec finding. The probe demonstrates a narrow documented unsafe boundary. Final production wrapper code remains subject to ordinary package safety review. | `pass` for dependency selection; exact critical decision review pending |
+| Platforms and targets | rustix/files code checked on Linux x86_64 and aarch64 targets and is GNU/musl independent when raw backend selection is enforced. libc checked and ran on Linux x86_64 and ran natively against Open Directory on macOS amd64/arm64. Linux arm64 runtime and final artifacts remain package/release acceptance, not an unresolved dependency API gate. | `pass` |
 | Maintenance and Rust version | rustix 1.1.4 is Bytecode Alliance maintained, MSRV 1.63, and already exists transitively. crates.io reported 1.02B total/234M recent downloads. libc 0.2.189 is the current maximum stable release, Rust project maintained, MSRV 1.65, already locked exactly here, with 1.468B total/320M recent downloads. Rust 1.96 exceeds both MSRVs; `std::chown` is stable since 1.73. | `pass` |
-| Architectural constraints | Explicit profiles prevent native linkage from contaminating files-only artifacts. Both paths are synchronous and share only the oracle-required cache; no runtime/process/service is added. Unsafe is isolated behind one safe native wrapper as required by policy. | `conditional pass`; native runtime review pending |
+| Architectural constraints | Explicit profiles prevent native linkage from contaminating files-only artifacts. Both paths are synchronous and share only the oracle-required cache; no runtime/process/service is added. Unsafe is isolated behind one safe native wrapper as required by policy. | `pass`; enforce again at package review |
 
-## Conditional Cargo configuration
+## Exact Cargo configuration
 
-After all hard gates pass, add exact dependencies centrally. Both versions are
-already present in the current workspace lockfile:
+After the fresh critical review is clean, add these exact dependencies
+centrally. Both versions are already present in the current workspace lockfile:
 
 ```toml
 rustix = { version = "=1.1.4", default-features = false, features = ["std", "process"] }
 libc = { version = "=0.2.189", default-features = false }
 ```
 
-The final workspace feature tree must contain neither rustix `use-libc` nor an
-external `--cfg rustix_use_libc`. The libc line is **not yet approved**; it is
-shown to make the gated configuration exact. No parser or subprocess crate is
-authorized.
+The files-profile workspace feature tree must contain neither rustix
+`use-libc` nor an external `--cfg rustix_use_libc`. The libc dependency is
+enabled only for the explicit native profile/target selection. No parser or
+subprocess crate is authorized.
 
 ## Executable verification
 
@@ -400,9 +407,43 @@ cargo audit --no-fetch --deny warnings
 Native Linux returned UID 1000, GID 1001, username `codex`, display name
 `Codex`, and home `/home/codex`, exactly matching Go 1.26.1 cgo `Current()` on
 the same host. The two-package lock audit found no issue in 1,211 available
-advisories. Apple checks establish APIs/types and compilation only: this host
-cannot link or run macOS binaries, so no macOS or Open Directory result is
-claimed.
+advisories. Those earlier Apple cross-checks established only APIs/types and
+compilation; the following later native run supplies the runtime evidence.
+
+### Native macOS differential
+
+GitHub Actions run
+[`31529008863`](https://github.com/getployz/ployz-rust-port/actions/runs/31529008863)
+was manually dispatched on public repository `getployz/ployz-rust-port`. Both
+jobs checked out exact head `45ecd305c32860edace30dc07f1201d16d4166a9`;
+`git diff` confirms that head's workflow and probe sources are byte-identical to
+this research base.
+
+| Job | Native evidence | Exact toolchain and dependency | Result |
+| --- | --- | --- | --- |
+| `93904233162`, `macOS NSS (arm64)` | `macos-15` runner; `uname -m=arm64`; macOS 15.7.7 (24G720); Rust host `aarch64-apple-darwin`; Go target `darwin/arm64`; `CGO_ENABLED=1` | Go 1.26.1; rustc/cargo 1.96.0; locked libc 0.2.189 | pass, five byte-identical rows |
+| `93904233178`, `macOS NSS (x86_64)` | `macos-15-intel` runner; `uname -m=x86_64`; macOS 15.7.7 (24G720); Rust host `x86_64-apple-darwin`; Go target `darwin/amd64`; `CGO_ENABLED=1` | Go 1.26.1; rustc/cargo 1.96.0; locked libc 0.2.189 | pass, five byte-identical rows |
+
+The arm64 artifact is `macos-nss-arm64` (ID `9116122391`, archive SHA-256
+`4458c69e819d72a650fb486032499aeac712140019d66165dba0e6605862613d`);
+the x86_64 artifact is `macos-nss-x86_64` (ID `9116132053`, archive SHA-256
+`c27722aa0ec1e4303d8986d83bb0f186605240ab28085feb36f795aae18ef72e`).
+The artifacts expire after 14 days, so this record retains the run, job,
+source, and content hashes needed to audit the evidence after expiry.
+
+On both machines, `runner` UID 501 was absent from `/etc/passwd` and resolved
+through both `dscl` and `dscacheutil`; `_accessoryupdater` UID 278 supplied the
+second Directory Service record. The probe compared current, current-name,
+current-UID, directory-name, and directory-UID records. Go and Rust TSV SHA-256
+values were identical within each architecture—
+`c083ee946e87df290488817ad15d9ad17e849f0f4fc9b7fe9df0332a1d6ab850`
+on arm64 and
+`25eee1ad6267e3f39f36ae3d98f1e803d7423570345e9113a14c27db68c785bc`
+on x86_64—and both `differential.diff` files were empty. This establishes
+native status/result-pointer success, field copying, and actual Open Directory
+resolution on both released macOS architectures. Error injection, cache races,
+full SSH caller scenarios, and final artifact inspection remain package
+acceptance work listed below; they do not require a different dependency.
 
 Frozen production-call inventory:
 
@@ -506,16 +547,18 @@ cgo-enabled Linux development build cannot be silently declared out of scope;
 and the separately reachable omitted-user `ssh+go` paths do execute native
 macOS `Current()`. They also exposed the cgo-free process-global `Current()`
 behavior omitted by the first files-only proposal. This revision records both
-CLI paths, the direct machine group caller, and the evidence still missing from
-the target-specific libc candidate.
+CLI paths, the direct machine group caller, and the now-complete native macOS
+evidence for the target-specific libc selection.
 
-A fresh parity reviewer and a fresh critical Rust dependency reviewer must
-confirm Linux and macOS current-user fidelity, native name/group behavior,
-conditional rustix/libc hard gates, caller reachability, parser/chown fidelity,
-the exact macOS infrastructure blocker, evidence honesty, and sole-file scope.
+A fresh critical dependency reviewer must confirm Linux and macOS current-user
+fidelity, native name/group behavior, rustix/libc hard gates, caller
+reachability, parser/chown fidelity, exact native artifact provenance, evidence
+honesty, and sole-file scope before the controller changes the registry row to
+approved.
 
 Affected packages: future `crates/ployz-internal-fs`,
 `crates/ployz-internal-sshexec`, and `crates/ployz-internal-machine` / matching
-Go packages. All remain dependency-blocked until native macOS evidence and the
-required critical review pass. They must share the selected account primitives
-and process-global cache under the explicit artifact profile.
+Go packages. They remain dependency-blocked only until the required critical
+review passes and the controller updates the registry. They must share the
+selected account primitives and process-global cache under the explicit
+artifact profile.
