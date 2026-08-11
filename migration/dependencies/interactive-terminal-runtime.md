@@ -2,17 +2,17 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` — revised candidate selected, but this critical runtime must receive another fresh adversarial dependency review before approval |
+| Status | `blocked` — the required second adversarial review rejected the provisional pair after reproducing two hard behavior-gate failures |
 | Capability | Cooked confirmation input plus the spinner's interactive terminal session: exact stdio TTY gates, raw stdin, synchronous events, stderr main-screen rendering, cursor/paste/keyboard modes, cancellation, and exact-stdout width. Rich widgets, layout, and full-screen rendering are out of scope. |
-| Selected dependency | `crossterm = { version = "=0.29.0", default-features = false, features = ["bracketed-paste", "events", "windows"] }`; `terminal_size = "=0.4.4"` |
+| Selected dependency | None. The provisional `crossterm` 0.29.0 plus `terminal_size` 0.4.4 pair is rejected with its exact proposed features below. |
 | License | `MIT` (`crossterm`); `MIT OR Apache-2.0` (`terminal_size`) |
 | Research date | `2026-08-11` UTC |
-| Request | Delegated capability request for `upstream/uncloud/internal/cli/tui`; no on-disk request or package packet exists at base `a47272fab9ecef37b513d0ad8a47c81c75f86dc4` |
+| Request | Delegated capability request for `upstream/uncloud/internal/cli/tui`; no on-disk request or package packet exists at base `e4c100daf293403270d7e3696eb187aff440ebb4` |
 
-This replaces the rejected Ratatui proposal in commit
-`0487171f4e84d0ff7d489225f6f9835cac9082c0`. The selection above is a
-recommendation for re-review, not an approval. The dependency gate remains
-closed while this record is `blocked`.
+The direct pair replaced the rejected Ratatui proposal in commit
+`0487171f4e84d0ff7d489225f6f9835cac9082c0`, but it also fails the gate. The
+dependency gate remains closed. No root manifest, lockfile, registry, package
+packet, or migration crate may consume the rejected entries.
 
 ## Oracle contract
 
@@ -45,9 +45,24 @@ and
 - the accessible form discards field errors and returns `nil`, so this wrapper
   currently returns `(answer, nil)`.
 
-The Rust confirmation path therefore needs only ordinary buffered line input
-and `Write` output. It must not enter raw mode, use Crossterm events, emit
-cursor/display-mode escapes, require a TTY, or construct Ratatui state.
+Executable probes add three constraints that an ordinary unbounded
+`BufRead::read_line` adapter would miss:
+
+- the exact stderr prompt is SGR bold yellow followed by reset and one space,
+  for example `\x1b[1;33mProceed? [y/N]\x1b[m `; success adds the form's one
+  newline, while EOF/read error adds the scanner newline and then the form
+  newline;
+- Go's default `bufio.Scanner` token limit is observable: a 65,537-byte token
+  without a newline is treated as a scanner error and therefore returns the
+  false default with two newlines; and
+- every prompt/error/newline write error is ignored. A valid `y` read through
+  an always-failing writer still produces `(true, nil)`; a read error preserves
+  the bound default and is also returned as `nil`.
+
+The Rust confirmation path needs a capped, scanner-compatible cooked reader and
+an error-suppressing `Write` adapter. It must not enter raw mode, use Crossterm
+events, emit cursor/display-mode escapes, require a TTY, or construct Ratatui
+state. Exact SGR and newline bytes require fixture tests.
 
 ### Spinner fallback and interactive split
 
@@ -56,8 +71,9 @@ exact stdin and exact stderr with the helpers in `prompt.go`.
 
 - If either is not a terminal, it writes exactly `title + "\n"` to stderr,
   calls the action synchronously with the original context, and returns the
-  action error unchanged. A pre-cancelled context does not prevent the action,
-  and an action panic propagates on this path.
+  action error unchanged. The title write error is ignored. A pre-cancelled
+  context does not prevent the action, and an action panic propagates on this
+  path.
 - Only when both are terminals does it start Huh's spinner with default stdin,
   stderr output, the caller's context, and the action running concurrently.
   Stdout is irrelevant to this gate and stays clean.
@@ -77,6 +93,21 @@ Its zero-valued view and renderer source establish that the interactive spinner:
 - owns only a one-line animated glyph/title frame, not a widget tree, layout
   engine, viewport, or full-screen buffer.
 
+The keyboard transitions are not Crossterm's progressive-keyboard stack
+commands. The fork emits xterm modifyOtherKeys level 2 (`\x1b[>4;2m`) and sets
+Kitty basic disambiguation (`\x1b[=1;1u`), queries the Kitty flags
+(`\x1b[?u`), then resets modifyOtherKeys (`\x1b[>4m`) and Kitty flags
+(`\x1b[=0;1u`). Crossterm's `PushKeyboardEnhancementFlags`/`Pop...` instead
+emit `\x1b[>1u`/`\x1b[<1u`; using them would be an observable mismatch.
+
+A Linux `TERM=xterm` PTY capture also contained Bubble Tea's environment- and
+termios-dependent synchronized-output/unicode-mode queries, background-color
+query, tab-stop setup, main-screen clears, and cursor movement. These are
+package-level byte behavior, not evidence that a rich renderer is needed, but
+the eventual adapter must characterize and deliberately preserve them rather
+than claiming the six core cursor/paste/keyboard sequences are the complete
+oracle output.
+
 See the exact fork's
 [`tty_unix.go`](https://github.com/unlabs-dev/bubbletea/blob/c0b347143f3f43d584b010f68f44c21448fa8a86/tty_unix.go),
 [`View` fields](https://github.com/unlabs-dev/bubbletea/blob/c0b347143f3f43d584b010f68f44c21448fa8a86/tea.go#L128-L189),
@@ -85,15 +116,18 @@ and
 
 ### Spinner event, race, cancellation, EOF, and panic semantics
 
-These are application semantics that Crossterm exposes enough primitives to
-implement; Crossterm does not decide them.
+These are application/reducer semantics that a terminal adapter must implement;
+Crossterm does not decide them. Its display/event types cover several pieces,
+but the selected event source cannot satisfy the EOF/cancellation contract.
 
 - Huh matches Bubble Tea's `KeyMsg` interface, not only `KeyPressMsg`.
   Ctrl-C therefore interrupts on a press, repeat, or release if that event is
   delivered. Basic Unix sessions normally deliver presses because event-type
   reporting is not requested; Windows console input can deliver releases. The
   Rust reducer must test all three `crossterm::event::KeyEventKind` variants and
-  must not silently filter to `Press`.
+  must not silently filter to `Press`. Huh compares the exact key string
+  `ctrl+c`; extra Shift, Alt, Meta, Hyper, or Super modifiers must not
+  interrupt. A Rust `.contains(CONTROL)` predicate is too broad.
 - Raw-mode Ctrl-C is input, not normally a Unix signal. The interactive result
   is Bubble Tea's killed/interrupted error.
 - EOF ends Bubble Tea's input reader without sending a message or stopping the
@@ -114,11 +148,18 @@ implement; Crossterm does not decide them.
   original action error); otherwise the cancellation/interrupt result wins.
   There is no deterministic priority promise for a simultaneous race.
 - No renderer/event/application lock is held while user action code runs.
-- An interactive action panic is caught in Bubble Tea's command goroutine,
-  diagnosed with a CRLF-normalized panic and stack on the process's actual
-  stderr, followed by cleanup and a killed/panic error. The non-TTY path does
-  not catch the panic. Rust must at minimum unwind through terminal cleanup;
-  exact catch/diagnose/error conversion remains a parity requirement.
+- An interactive action panic is caught in Bubble Tea's batch-command
+  goroutine. That path diagnoses the CRLF-normalized panic and stack on the
+  process's actual stderr while the terminal can still be raw/cursor-hidden;
+  the main program loop then performs shutdown and returns a killed/panic
+  error. The non-TTY path does not catch the panic. Cleanup-before-diagnostic is
+  safer but is not the oracle's observable order; any intentional parity
+  exception requires controller/human authority.
+- Input and resize-listener failures are primary killed errors. EOF is a clean
+  end of the reader and sends no error or event. Periodic/final renderer flush,
+  renderer close, and terminal-restore errors are ignored by the fork. The
+  action/cancellation/interrupt result therefore still governs an output or
+  cleanup failure.
 
 The source path is Huh's exact
 [`spinner.go`](https://github.com/charmbracelet/huh/blob/c4753045be5675ae3c814b4753687670f158d517/spinner/spinner.go#L179-L258)
@@ -133,14 +174,19 @@ and
 nonpositive width. It does not ask for a controlling terminal and does not fall
 back to stderr or stdin.
 
-Use only
+The provisional
 [`terminal_size::terminal_size_of(&std::io::stdout())`](https://docs.rs/terminal_size/0.4.4/terminal_size/fn.terminal_size_of.html)
-and map `None` or zero width to `0`. The exact 0.4.4 Unix source applies
-`isatty` and `tcgetwinsize` to the supplied descriptor; its Windows source calls
-`GetConsoleScreenBufferInfo` on the supplied handle. Do not call
-`terminal_size::terminal_size()`, which tries stdout, then stderr, then stdin.
-Do not call `crossterm::terminal::size()`, whose Unix implementation opens
-`/dev/tty`, falls back to stdout only when that fails, and may invoke `tput`.
+does target the exact descriptor, but it is not behaviorally sufficient. Its
+Unix implementation returns `None` unless **both** rows and columns are
+positive. A PTY set to `(rows=0, columns=80)` produced `None` in Rust, while
+Go's `term.GetSize(stdout)` produced `(80, 0, nil)` and `TerminalWidth`
+returned `80`, because the oracle validates only width. This is a hard blocker.
+
+The successor must query the exact stdout descriptor/handle and validate only
+the returned width. It must not use `terminal_size::terminal_size()`, which
+tries stdout, then stderr, then stdin, or `crossterm::terminal::size()`, whose
+Unix implementation opens `/dev/tty`, falls back to stdout only when that fails,
+and may invoke `tput`.
 
 ## Primary-source dependency evidence
 
@@ -154,6 +200,14 @@ Do not call `crossterm::terminal::size()`, whose Unix implementation opens
 - Crossterm commands accept a supplied `Write`, so Unix ANSI commands can be
   directed to stderr. Raw mode remains application-global and Crossterm does
   not supply the application-level session guard required below.
+- With the proposed features, Crossterm's Unix reader selects its Mio source.
+  In the exact 0.29.0
+  [`mio.rs`](https://github.com/crossterm-rs/crossterm/blob/36d95b26a26e64b0f8c12edfe11f410a6d56a812/src/event/source/unix/mio.rs#L67-L152),
+  the inner TTY loop advances only for positive reads, breaks only for
+  `WouldBlock`, and retries `Interrupted`; zero-byte EOF and errors such as PTY
+  `EIO` neither return nor break. A native PTY hangup reproduced an indefinite
+  97–98% CPU loop inside `poll(200ms)` until SIGKILL. Action completion,
+  cancellation, and cleanup cannot regain control. This is a hard blocker.
 - Crossterm's exact
   [`Cargo.toml`](https://docs.rs/crate/crossterm/0.29.0/source/Cargo.toml.orig)
   declares MIT, Rust 1.63, and defaults `bracketed-paste`, `events`, `windows`,
@@ -162,7 +216,9 @@ Do not call `crossterm::terminal::size()`, whose Unix implementation opens
 - `terminal_size` 0.4.4's exact
   [`Cargo.toml`](https://docs.rs/crate/terminal_size/0.4.4/source/Cargo.toml.orig)
   declares `MIT OR Apache-2.0`, Rust 1.71, no feature flags, Rustix on Unix,
-  and `windows-sys` on Windows.
+  and `windows-sys` on Windows. Its exact
+  [`unix.rs`](https://github.com/eminence/terminal-size/blob/cad29f6450c6873fe2f719b93d17bba14c15737e/src/unix.rs#L21-L40)
+  rejects a valid positive width when rows are zero, unlike the oracle.
 - Official crates.io metadata captured on 2026-08-11 reported Crossterm at
   171,694,045 total / 40,990,622 recent downloads and 7,068 reverse-dependent
   crates; `terminal_size` at 187,221,455 / 34,751,154 and 667 dependents; and
@@ -174,53 +230,54 @@ Do not call `crossterm::terminal::size()`, whose Unix implementation opens
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | Cooked confirmation; exact stdio gates; raw spinner input; stderr main-screen output; cursor, paste, basic keyboard modes; typed events; bounded cancellation polling; exact stdout width | Standard I/O covers confirmation. Crossterm covers every spinner primitive. `terminal_size_of(stdout)` covers exact-FD width. Rust and PTY probes compiled and exercised these APIs. Ratatui is unnecessary. | `pass` for shipped Linux/macOS behavior, subject to re-review |
-| License and security | Permissive direct/transitive licenses; no known advisory in the exact resolution | Direct licenses are MIT and MIT/Apache-2.0. The focused lock's declared licenses were MIT, Apache-2.0, accepted combinations, or Apache-2.0 WITH LLVM-exception. `cargo audit` scanned 29 packages against 1,211 RustSec advisories and exited clean. | `pass`, subject to re-review and integration re-audit |
-| Platforms and targets | Shipped CLI targets Linux/macOS amd64/arm64; honest Windows statement | Rust 1.96 native Linux check and macOS cross-check passed. Windows GNU cross-compiles with the `windows` feature, but runtime stderr/VT/ConPTY and exact raw restore are not established. The oracle release matrix comments Windows out. | `pass` only for shipped Linux/macOS runtime; Windows runtime explicitly out of scope |
+| Behavior | Cooked confirmation; exact stdio gates; raw spinner input; stderr main-screen output; cursor, paste, basic keyboard modes; typed events; bounded cancellation polling; exact stdout width | The proposed Mio event source can spin forever on EOF/EIO, and `terminal_size_of(stdout)` rejects positive width when rows are zero. The record also prescribed non-oracle keyboard bytes, Ctrl-C matching, scanner limits, and failure precedence. | **`fail`** |
+| License and security | Permissive direct/transitive licenses; no known advisory in the exact resolution | Direct licenses are MIT and MIT/Apache-2.0. The focused lock's declared licenses were MIT, Apache-2.0, accepted combinations, or Apache-2.0 WITH LLVM-exception. `cargo audit` scanned 29 packages against 1,211 RustSec advisories and exited clean. | `pass` for the rejected graph; successor must be re-audited |
+| Platforms and targets | Shipped CLI targets Linux/macOS amd64/arm64; honest Windows statement | Rust 1.96 native Linux and macOS cross-compilation passed. No native macOS PTY probe or recorded verification exception exists. Windows GNU cross-compiles, but runtime stderr/VT/Console/ConPTY and exact raw restore are not established. The oracle release matrix comments Windows out. | **`fail`** pending native macOS evidence/exception; Windows runtime explicitly unapproved |
 | Maintenance and Rust version | Maintained, established, Rust <= 1.96 | Exact MSRVs are 1.63 and 1.71. Crossterm 0.29.0 and `terminal_size` 0.4.4 are their current non-yanked releases in official crates.io metadata; both have high current download volume. Rust 1.96 checks passed. | `pass` |
-| Architectural constraints | No rich renderer; exact streams; testable state machine; cleanup after every exit; no async runtime or proc-macro convenience graph | Direct Crossterm commands/events plus a pure one-line reducer fit. `terminal_size_of` preserves the exact descriptor. Defaults off excludes Ratatui, `derive-more`, futures, Serde, clipboard, and `/dev/tty` feature additions. | `pass`, provided the mandatory guard below is implemented and reviewed |
+| Architectural constraints | No rich renderer; exact streams; testable state machine; cleanup after every exit; no async runtime or proc-macro convenience graph | A pure reducer/direct writer remains appropriate, but the chosen input backend can permanently trap the driver thread and the width API cannot expose required data. | **`fail`** for the provisional pair |
 
 ## Candidate comparison
 
 | Candidate | Hard-gate fit | Weight and ergonomics | Decision |
 | --- | --- | --- | --- |
-| `crossterm` 0.29.0 + `terminal_size` 0.4.4 | Covers every required low-level spinner primitive, typed event kinds, bounded sync polling, and exact-FD width. Strong adoption, explicit MSRVs, permissive licenses. | Two direct crates. On Linux the focused normal graph has no async runtime, futures, Serde, Ratatui, or `derive_more`; Crossterm's unconditional `document-features` is the sole proc macro. | **Selected for fresh re-review.** |
+| `crossterm` 0.29.0 + `terminal_size` 0.4.4 with the proposed features | Covers many low-level display primitives and typed events, but the selected Mio reader spins on EOF/EIO and the width API rejects `(rows=0, columns>0)`. Its keyboard push/pop commands also do not match the oracle bytes. | Two direct crates. On Linux the focused normal graph has no async runtime, futures, Serde, Ratatui, or `derive_more`; Crossterm's unconditional `document-features` is the sole proc macro. | **Rejected by hard behavior gates.** |
 | Ratatui 0.30.2 + Crossterm | Can render terminal-cell buffers, widgets, viewports, and diffs, but still delegates input, session policy, action races, and cleanup. No oracle path requires its abstraction: confirmation is cooked and the spinner is one main-screen line. | Adds a second renderer, buffer/layout/widget surface, re-export layer, and transitives. Its test backend does not remove the need for a pure reducer and injected writer/event tests. | **Rejected as over-selected; no required behavior proves it necessary.** |
-| Termion 4.0.6 | Supplies Unix raw mode, events, escapes, and FD size, but its documented platform scope is Redox/macOS/Linux or ANSI terminals and it lacks Crossterm's portable typed event-kind model. | Lighter on some Unix builds, but substantially less adopted and loses the Windows compile path without improving shipped-target parity. | Rejected: narrower and less idiomatic for no behavior benefit. |
-| Termwiz / Termina | Broad terminal models and parsers can cover the primitives. | Considerably broader surface or much lower adoption; neither fixes application-owned race and cleanup semantics. | Rejected: no parity advantage over direct Crossterm. |
-| Bespoke termios/WinAPI/ANSI runtime | Could control every byte and descriptor. | Duplicates platform-sensitive raw/event/parser code, introduces direct unsafe/FFI responsibility, and has no ecosystem maintenance. | Rejected while a popular passing pair exists. |
+| Termion 4.0.6 | Supplies Unix raw mode, events, escapes, and FD size, but its documented platform scope is Redox/macOS/Linux or ANSI terminals and it lacks Crossterm's portable typed event-kind model. | Lighter on some Unix builds, but substantially less adopted. | Not approved; a successor review would need exact EOF/EIO, zero-row width, macOS, and event-semantics probes. |
+| Termwiz / Termina | Broad terminal models and parsers can cover the primitives. | Considerably broader surface or much lower adoption; neither fixes application-owned race and cleanup semantics. | Not approved; reconsider only with complete hard-gate evidence. |
+| Bespoke termios/WinAPI/ANSI runtime | Could control every byte and descriptor. | Duplicates platform-sensitive raw/event/parser code, introduces direct unsafe/FFI responsibility, and has no ecosystem maintenance. | Last resort only if maintained candidates cannot pass. |
 
-## Selected integration
+## Rejected provisional integration
 
 ### Exact versions and features
 
-Only the integrator may add these workspace dependencies and lockfile entries:
+These are the exact rejected entries. The integrator must not add them:
 
 ```toml
 crossterm = { version = "=0.29.0", default-features = false, features = ["bracketed-paste", "events", "windows"] }
 terminal_size = "=0.4.4"
 ```
 
-`events` supplies synchronous input and typed key/resize events;
-`bracketed-paste` supplies the oracle's paired mode and paste event;
-`windows` is required because Crossterm deliberately fails Windows compilation
-without it. Target-specific Windows dependencies do not enter Unix builds, and
-this feature is not evidence of Windows runtime parity.
+`events` selects the failing Mio Unix reader; `bracketed-paste` supplies paste
+events; and `windows` maintains only a compile path. `use-dev-tty` was tested as
+a possible Crossterm successor: it avoided the permanent hang after an initial
+poll but could spin until the timeout on hangup, changes the graph and
+`/dev/tty` behavior, and has not received the required security/license/macOS
+review. It is not an approved drop-in correction.
 
-Do not enable `derive-more`, `event-stream`, `serde`, `osc52`, `use-dev-tty`,
-`libc`, or defaults. In particular, do not add an async runtime, futures stream,
-Ratatui, or a second terminal backend. Match enums directly instead of enabling
-`derive-more`. The focused all-target lock contained 29 packages including the
-temporary probe itself. The Linux normal graph's only proc macro was
-Crossterm's unconditional
-`document-features` (plus its small `litrs` parser).
+The rejected focused all-target lock contained 29 packages including the
+temporary probe itself. It did not contain Ratatui, an async runtime, futures,
+Serde, `derive_more`, or clipboard support. The Linux normal graph's only proc
+macro was Crossterm's unconditional `document-features` plus its small `litrs`
+parser. These weight advantages do not override failed behavior gates.
 
 ### Natural API and parity constraints
 
-- Implement confirmation with `BufRead::read_line`/equivalent cooked input and
-  an injected `Write`; keep parsing in a pure function. Preserve case folding,
-  blank default, untrimmed nonblank validation, reprompt text, EOF false, and
-  newline behavior. Do not route it through the terminal session.
+- Implement confirmation with a cooked scanner-compatible adapter capped at
+  Go's default 64 KiB token limit and an injected error-suppressing `Write`;
+  keep parsing in a pure function. Preserve exact SGR bytes, case folding,
+  blank default, untrimmed nonblank validation, reprompt text, EOF/read-error
+  default, suppressed write errors, and newline behavior. Do not route it
+  through the terminal session.
 - Gate interactive spinner setup with exact
   `std::io::stdin().is_terminal() && std::io::stderr().is_terminal()` before any
   Crossterm call. Never permit Crossterm's controlling-TTY fallback to override
@@ -229,66 +286,82 @@ Crossterm's unconditional
   reducer should accept tick, action-result, cancellation, and typed key events;
   a small generic-`Write` renderer should emit/clear that line. Do not enter the
   alternate screen or enable mouse/focus modes.
-- Push only `KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES`; do not request
-  `REPORT_EVENT_TYPES`, alternate keys, or all-keys-as-escape-codes. Still handle
-  Ctrl-C across `Press`, `Repeat`, and `Release` when delivered.
-- Use synchronous `event::poll` with a bounded 25–100 ms timeout followed by
-  `event::read` on the same thread. Each timeout rechecks action completion and
-  cancellation. Do not mix this reader with `EventStream`.
+- Do not use Crossterm's keyboard push/pop commands. An explicit byte adapter
+  must set/reset xterm modifyOtherKeys and Kitty basic disambiguation with the
+  oracle's exact sequences and queries. Do not request event-type reporting,
+  alternate keys, or all-keys-as-escape-codes. Match exactly Control+C with no
+  extra modifiers across `Press`, `Repeat`, and `Release` when delivered.
+- Use an input primitive proven by native PTY hangup tests to return control on
+  EOF/EIO within its bound. Each 25–100 ms timeout must recheck action
+  completion and cancellation. A reader that traps its thread or leaks a
+  permanent busy-loop fails even if the main result can detach from it.
 - Run the action outside every application mutex and outside any borrowed
-  stderr lock. Because raw mode is process-global, reject a concurrent second
-  interactive session with an atomic/nonblocking active-session lease; do not
-  hold a blocking `MutexGuard` across user action execution.
+  stderr lock; do not hold a blocking `MutexGuard` across user action
+  execution. Because raw mode is process-global, a nonblocking active-session
+  lease would be the safe Rust design, but the Go oracle has no concurrent-run
+  rejection. That observable safety deviation needs explicit controller/human
+  authorization after an overlap characterization test; it is not silently
+  approved by this record.
 - Preserve the first observed action/cancellation/interrupt winner rather than
   inventing deterministic priority. Preserve the original action error when it
   wins. Document and test that Ctrl-C may return while an action that ignores
   its context continues.
-- Call only `terminal_size_of(&stdout)` for width and return zero for `None` or
-  zero. Never call either fallback size API.
+- Query only the exact stdout descriptor/handle and accept positive width even
+  when height is zero. Never call a fallback size API.
 
 ### Mandatory executable RAII state machine
 
-Crossterm exposes paired operations, not an application session guard. The
-package implementation must encode and test this state machine:
+Crossterm exposes paired operations, not an application session guard. Any
+successor must encode and test this state machine independently of the rejected
+pair:
 
 1. Acquire the nonblocking active-session lease and perform the exact stdin /
    stderr TTY preflight.
 2. Enable raw mode; record `raw_enabled` only after success.
 3. For each stderr transition, conservatively mark the mode as “may be active”
    **before** its independent write/flush, because a writer can accept bytes and
-   then report failure: hide cursor, enable bracketed paste, push basic keyboard
-   enhancement.
+   then report failure: hide cursor, enable bracketed paste, set
+   modifyOtherKeys, and set Kitty basic disambiguation.
 4. Start the action with no application lock or writer lock held. Drive ticks,
    cancellation, action result, and input through bounded polling.
-5. On setup error, render/event error, action result/error, cancellation,
-   interrupt, or panic, attempt every applicable cleanup independently in
-   reverse order: pop keyboard enhancement, disable bracketed paste, clear the
-   managed line, show cursor, flush stderr, and disable raw mode. A cleanup
-   failure must never short-circuit later attempts.
-6. Preserve the primary setup/action/cancellation/interrupt/panic outcome.
-   Retain cleanup failures as secondary diagnostics; only when no primary error
-   exists may cleanup failure become the returned error.
-7. Provide an explicit fallible `finish()` for reportable normal cleanup and a
-   non-panicking `Drop` backstop that retries all still-marked transitions after
-   partial setup and during unwind. Make cleanup idempotent.
+5. On terminal/raw/input setup error, listener error, action result/error,
+   cancellation, interrupt, or panic, attempt every applicable cleanup
+   independently. Preserve Bubble Tea's multi-stage ordering in byte fixtures:
+   reset modifyOtherKeys and Kitty flags; move to the bottom and flush that
+   movement; erase below, show cursor, and disable bracketed paste; flush the
+   remaining buffered display transitions; then restore input raw mode. A
+   cleanup failure must never short-circuit later attempts.
+6. Model error precedence explicitly. Terminal/raw/input setup and
+   input/resize-listener failures are primary. Initial/periodic/final stderr
+   transition or render writes, renderer close, flush, and restore failures are
+   suppressed by the oracle; they do not trigger an early exit or replace
+   success/another winner. Returning a cleanup error when no other error exists
+   is not parity.
+7. Provide an explicit internal `finish()` that attempts every cleanup and can
+   collect failures for injected-test assertions, while the public spinner
+   result suppresses that cleanup report. Add a non-panicking `Drop` backstop
+   that retries all still-marked transitions after partial setup and during
+   unwind. Make cleanup idempotent.
 8. For exact interactive panic parity, place `catch_unwind` at the action-thread
-   boundary, carry the panic as the primary outcome, complete cleanup, emit the
-   required diagnostic, and convert it to the package's spinner panic error.
-   Let the non-interactive action unwind normally. The fresh parity/Rust reviews
-   must approve the exact mapping.
+   boundary, carry the panic as the primary outcome, emit the required
+   CRLF-normalized diagnostic and stack to actual process stderr, then complete
+   cleanup and convert it to the package's spinner panic error. Let the
+   non-interactive action unwind normally. If cleanup-before-diagnostic is
+   selected for safety, record an explicit parity exception before approval.
 
 Setup and cleanup must not use one multi-command `execute!` whose first error
 skips later work. Inject a terminal-operations backend in tests so every setup
 step and every cleanup step can fail independently; assert rollback flags, all
-cleanup attempts, primary-error retention, and idempotent `Drop`.
+cleanup attempts, oracle error suppression/precedence, and idempotent `Drop`.
 
 ## Windows scope and known limitations
 
 The shipped `uc` matrix in
 [`.goreleaser.yaml`](../../upstream/uncloud/.goreleaser.yaml) is Linux/macOS
-amd64/arm64; Windows is commented out. This decision recommends runtime support
-only for those shipped Linux/macOS targets. The `windows` feature maintains a
-compile path; Windows runtime behavior is explicitly **not approved** here.
+amd64/arm64; Windows is commented out. Any successor decision needs runtime
+support for those shipped Linux/macOS targets. The rejected `windows` feature
+maintains only a compile path; Windows runtime behavior is explicitly **not
+approved** here.
 
 Crossterm 0.29.0 source prevents a stronger claim:
 
@@ -309,12 +382,15 @@ tests. Do not advertise the cross-check below as Windows runtime parity.
 Other limitations:
 
 - Raw mode and display modes are process-global. The required lease/guard must
-  prevent overlapping sessions and clean up best-effort even during unwind.
-- Crossterm's synchronous reader is global internally. One reader thread and
-  serialized live-terminal tests are required.
-- `event::poll` can report a ready source whose subsequent parse/read fails;
-  treat that as a primary event error and run full cleanup. EOF is not such an
-  error in the oracle.
+  clean up best-effort even during unwind; rejecting overlap remains a pending
+  safety/parity decision as described above.
+- Crossterm's synchronous reader is a non-reset singleton. Any Crossterm
+  successor requires one reader thread plus process-isolated, serialized
+  live-terminal tests; `/dev/tty` fallback and stable-descriptor ownership must
+  be explicit.
+- The rejected Mio reader permanently spins after EOF/EIO. A successor must
+  distinguish clean EOF (ignored by the oracle) from listener errors (primary)
+  without trapping or leaking its driver thread.
 - A clean focused audit is point-in-time evidence. Re-audit the integrated
   lockfile and review any future transitive/version change.
 
@@ -339,56 +415,70 @@ Results:
 
 - the frozen Go package passed;
 - confirmation probes covered `y`, `YES`, `n`, `No`, blank, invalid then valid,
-  EOF, and surrounding whitespace; a PTY run showed cooked echo and no terminal
-  mode sequences;
+  EOF, surrounding whitespace, an injected reader error, an always-failing
+  writer, and a 65,537-byte over-limit token. Exact SGR/reset and one-versus-two
+  newline behavior was captured;
 - spinner probes covered action success/error, external cancellation, Ctrl-C,
-  ignored EOF, panic diagnostic/error, and action-return races; source tracing
-  confirmed the event-kind and leaked-action behavior;
-- three Rust unit tests passed for command bytes, all Ctrl-C event kinds, and
-  exact-FD `None` on a regular file;
-- PTY sessions emitted exactly cursor hide, paste enable, basic keyboard push,
-  keyboard pop, paste disable, and cursor show, with no alternate-screen,
-  mouse, or focus sequence;
+  ignored EOF, pre-cancel on interactive and fallback paths, panic
+  diagnostic/error, listener/output failures, and action-return races. One
+  immediate action/Ctrl-C run produced both winners across 100 iterations; a
+  Ctrl-C run returned while its context-ignoring action remained alive;
+- the Go renderer ignored an injected output failure but surfaced an injected
+  listener failure as a killed error, matching source error routing;
+- five Rust unit tests passed for explicit oracle keyboard bytes, proof that
+  Crossterm push differs, all Ctrl-C event kinds, exact-FD `None` on a regular
+  file, and non-short-circuiting cleanup attempts;
+- the Go PTY capture showed no alternate-screen, mouse, or focus sequence, but
+  did show modifyOtherKeys plus Kitty set/query/reset and additional
+  environment-dependent terminal queries; it was not limited to Crossterm's
+  push/pop bytes;
 - PTY termios snapshots matched after normal cleanup and after a Rust panic
   unwind (`rc=101`);
 - an 80x24 PTY returned `Some(80x24)` for exact stdout, while redirecting stdout
   alone returned `None` even though the fallback API found stderr's 80x24 PTY;
+- the hard width edge reproduced: `(rows=0, columns=80)` returned `80` from Go
+  and `None`/`0` from `terminal_size`;
+- the exact selected Crossterm Mio reader reproduced a hard PTY-hangup failure:
+  `event::poll(200ms)` remained in running state at 97–98% CPU after one second
+  and required SIGKILL;
 - Rust 1.96 checks passed for Linux, macOS, and Windows GNU; this is compile-only
-  evidence for Windows; and
+  evidence for macOS/Windows, not native PTY/Console/ConPTY runtime evidence;
+  and
 - the focused 29-package lock scanned clean against 1,211 RustSec advisories.
 
-Package acceptance must additionally run injected setup/cleanup failure tests,
-serialized live-PTY tests, and the exact confirmation/spinner race matrix in the
-owned crate. Dependency probes cannot substitute for those package tests.
+The passing checks establish useful candidate properties but cannot override
+the reproduced EOF/EIO and zero-row-width failures.
 
 ## Review
 
-This capability is a critical runtime, so
-[`migration/dependencies/README.md`](README.md) requires a second fresh
-adversarial dependency researcher. The earlier adversarial review rejected the
-Ratatui selection and oracle claims; this revision addresses those findings but
-has not been reviewed by another fresh agent.
+This critical runtime received the required second fresh adversarial review on
+the exact base. The reviewer made no repository edits and independently
+reproduced both hard failures. Result: **reject / blocked**.
 
-**Required next action:** dispatch a fresh adversarial dependency reviewer who
-independently rechecks:
+Before approval, a successor decision must:
 
-1. cooked confirmation versus raw spinner boundaries, including confirmation
-   EOF/newlines and untrimmed nonblank input;
-2. spinner main-screen modes, Ctrl-C across all event kinds, ignored EOF,
-   path-dependent pre-cancel/panic behavior, action leakage, and race winner;
-3. the exact dependency versions/features and complete absence of Ratatui,
-   async event streams, and optional proc-macro convenience features;
-4. exact-stdout width with no controlling-TTY or stderr/stdin fallback;
-5. the executable RAII contract: conservative partial-setup flags, all cleanup
-   attempts, primary-error preservation, unwind cleanup, no lock during user
-   action, session serialization, and bounded single-reader polling;
-6. license, Rust 1.96, feature tree, RustSec, Linux/macOS PTY evidence; and
-7. the explicit exclusion of Windows runtime parity, or else new real Windows
-   Console/ConPTY evidence and a separate approved primitive.
+1. replace, patch, or reconfigure the event primitive and prove with native
+   Linux and macOS PTY hangup tests that EOF/EIO cannot trap or leak a busy
+   reader and that action/cancellation still governs after clean EOF;
+2. replace `terminal_size` with an exact-stdout winsize primitive that accepts
+   positive width with zero height, or obtain an explicit parity exception;
+3. re-audit the successor's exact feature and transitive graph for licenses,
+   RustSec, Rust 1.96, and Linux/macOS targets;
+4. specify and byte-test capped Confirm input, suppressed Confirm/fallback
+   writes, exact modifier matching, modifyOtherKeys/Kitty sequences and queries,
+   listener/output/cleanup precedence, panic diagnostic order, all races, and
+   RAII rollback under injected partial failures;
+5. run process-isolated serialized PTY tests because raw mode and Crossterm's
+   reader are process-global, and record the stable-FD/`/dev/tty` ownership
+   contract; characterize overlapping oracle sessions and obtain explicit
+   authority for any Rust concurrent-session rejection; and
+6. provide native macOS PTY evidence or an approved verification exception.
+   Windows remains excluded unless native Console plus ConPTY/stderr behavior
+   is separately proven and approved.
 
-Until that reviewer records a clean result in this section, status remains
-`blocked`; the controller must not update `migration/DEPENDENCIES.tsv`, unblock a
-package, or treat this selection as approved.
+Until those requirements are satisfied and another exact candidate decision is
+approved, the controller must not update `migration/DEPENDENCIES.tsv`, unblock a
+package, or treat any terminal dependency as selected.
 
 Affected package: Go `upstream/uncloud/internal/cli/tui`; future migration crate
 `crates/ployz-internal-cli-tui`. No package packet exists at this base.
