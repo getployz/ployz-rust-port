@@ -44,10 +44,10 @@ date are selected and recorded. Dependency research and review for the approved
 rows may improve the decision in parallel but must not consume or delay an
 available implementation slot.
 
-The only current exceptions are `interactive-terminal-runtime`,
-`terminal-styling-layout`, and `terminal-output-profile`. They remain pending
-until the user reviews the candidate links and chooses the terminal styling
-approach; `internal/cli/tui` therefore remains dependency-blocked.
+The terminal exceptions were resolved by explicit user authority on 2026-08-11:
+all three existing terminal rows select exact iocraft 0.8.4 with only
+`unstable-output-streams`. This does not approve any future terminal or other
+capability.
 
 ## Scheduler pools
 

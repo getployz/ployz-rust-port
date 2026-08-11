@@ -6,9 +6,9 @@ randomized-exponential-backoff	approved	migration/dependencies/randomized-expone
 structured-logging-facade	approved	migration/dependencies/structured-logging-facade.md	tracing;tracing-subscriber	0.1.44;0.3.23	MIT	no	internal/log	-
 async-stream-network-runtime	approved	migration/dependencies/async-stream-network-runtime.md	tokio;tokio-util	1.53.1;0.7.19	MIT	yes	internal/proxy	-
 synchronous-outbound-http-client	approved	migration/dependencies/synchronous-outbound-http-client.md	base64;bytes;flate2;h2;http;http-body-util;hyper;hyper-rustls;hyper-util;ipnet;tokio	0.22.1;1.12.1;1.1.9;0.4.15;1.5.0;0.1.4;1.11.0;0.27.9;0.1.20;2.12.1;1.53.1	MIT;MIT OR Apache-2.0	yes	internal/dns	-
-interactive-terminal-runtime	blocked	migration/dependencies/interactive-terminal-runtime.md	-	-	-	yes	internal/cli/tui	-
-terminal-styling-layout	blocked	migration/dependencies/terminal-styling-layout.md	-	-	-	yes	internal/cli/tui	-
-terminal-output-profile	blocked	migration/dependencies/terminal-output-profile.md	-	-	-	yes	internal/cli/tui	-
+interactive-terminal-runtime	approved	migration/AUTHORITIES.tsv	iocraft[unstable-output-streams]	0.8.4	MIT OR Apache-2.0	yes	internal/cli/tui	-
+terminal-styling-layout	approved	migration/AUTHORITIES.tsv	iocraft[unstable-output-streams]	0.8.4	MIT OR Apache-2.0	yes	internal/cli/tui	-
+terminal-output-profile	approved	migration/AUTHORITIES.tsv	iocraft[unstable-output-streams]	0.8.4	MIT OR Apache-2.0	yes	internal/cli/tui	-
 http-server-runtime	approved	migration/dependencies/http-server-runtime.md	hyper;hyper-util;http-body-util;tokio;tokio-util;flate2	1.11.0;0.1.20;0.1.4;1.53.1;0.7.19;1.1.9	MIT;MIT OR Apache-2.0	yes	internal/machine/metrics	-
 protobuf-codegen-runtime	approved	migration/dependencies/protobuf-codegen-runtime.md	prost;prost-types;prost-build;tonic-prost;tonic-prost-build	0.14.4;0.14.4;0.14.4;0.14.6;0.14.6	Apache-2.0;MIT	yes	internal/machine/api/pb	-
 async-grpc-client-server	approved	migration/dependencies/async-grpc-client-server.md	tonic;tonic-build;tokio;tokio-stream;tower;http;bytes;hyper-util	0.14.6;0.14.6;1.53.1;0.1.19;0.5.3;1.5.0;1.12.1;0.1.20	MIT	no	internal/machine/api/pb,internal/grpcversion,internal/machine,pkg/client/connector,internal/machine/api/proxy	-
