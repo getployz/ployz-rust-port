@@ -1,0 +1,11 @@
+[workspace]
+
+[package]
+name = "ployz-macos-nss-probe"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+libc = { version = "=0.2.189", default-features = false }

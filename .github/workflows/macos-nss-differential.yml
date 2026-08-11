@@ -1,0 +1,69 @@
+name: macOS NSS differential
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-nss-differential-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  differential:
+    name: macOS NSS (${{ matrix.machine }})
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - runner: macos-15-intel
+            machine: x86_64
+          - runner: macos-15
+            machine: arm64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out probe source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install exact Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26.1"
+          check-latest: false
+          cache: false
+
+      - name: Run native differential
+        shell: bash
+        env:
+          PLOYZ_EXPECTED_MACHINE: ${{ matrix.machine }}
+        run: |
+          set -euo pipefail
+          evidence="${RUNNER_TEMP}/ployz-macos-nss-${PLOYZ_EXPECTED_MACHINE}"
+          mkdir -p "${evidence}"
+          {
+            rustup toolchain install 1.96.0 \
+              --profile minimal \
+              --component rustfmt \
+              --component clippy \
+              --no-self-update
+            bash migration/probes/macos-nss/run.sh \
+              "${evidence}" \
+              "${PLOYZ_EXPECTED_MACHINE}"
+          } 2>&1 | tee "${evidence}/run.log"
+
+      - name: Upload differential evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-nss-${{ matrix.machine }}
+          path: ${{ runner.temp }}/ployz-macos-nss-${{ matrix.machine }}
+          if-no-files-found: warn
+          retention-days: 14
