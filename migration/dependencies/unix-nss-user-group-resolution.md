@@ -2,435 +2,278 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` — fresh adversarial review rejected candidate `10cb71def83042c6db782896758f627a1dc87875`; D01 native macOS/privileged runtime evidence, D02 exact release-target/Docker artifact evidence, and D03 controller/human Linux-scope authority remain open |
-| Capability | Resolve a user name to UID and primary GID, resolve a group name to GID, preserve the released target/build-specific account source and errors, and change pathname ownership while independently leaving either ID unchanged |
-| Selected dependency and exact version | Linux lookup: none; macOS lookup only: `libc = "=0.2.189"`; Linux/macOS ownership: Rust 1.96 `std::os::unix::fs::chown` with no dependency |
-| License | `MIT OR Apache-2.0` for the macOS-only `libc`; project-owned safe Rust and `std` elsewhere |
+| Status | `blocked` — the released Linux behavior has a dependency-free pure-Rust design, but the shipped macOS `uc` resolves accounts through the native account database/Open Directory. No evaluated pure-Rust implementation can preserve that behavior and its error model. |
+| Capability | Resolve a user name to UID and primary GID, resolve a group name to GID, preserve the artifact-specific account source and errors, and change pathname ownership while independently leaving either ID unchanged. |
+| Selected dependency and exact version | **None.** No dependency is approved for the complete Linux/macOS capability. |
+| Passing sub-design | Released Linux lookup: project-owned safe Rust parser with no dependency. Linux/macOS ownership: Rust 1.96 `std::os::unix::fs::chown` with no direct dependency. |
+| Exact unblock condition | Either authorize a narrow macOS target-runtime FFI exception and freshly review direct `libc = "=0.2.189"` calls, or provide a pure-Rust macOS candidate that demonstrably preserves native/Open Directory lookup, byte and NUL behavior, typed failures, and concurrency. Dropping macOS or replacing native lookup with files-only lookup is not parity. |
 | Research date | `2026-08-11` UTC |
-| Research base | `f927d1bf224142754bc2f818b88fdb46d7d70686` |
-| Supersedes | Critically rejected proposal `58ea72e79a55c6ef56bf844ee503dd853588314f`; inspected, not applied |
-| Request | Direct controller delegation for future `crates/ployz-internal-fs`; no request file or package packet exists at this base |
+| Research base | `c943d3e84914ae24fcce4cc2a19f92c5c04599bf` |
+| Supersedes | The provisional Linux/macOS FFI split recorded through `0e7cf39c0a2768c0966f100fef3a01084f7ac025`; that split conflicts with the explicit pure-Rust target-runtime objective. |
+| Request | Direct controller delegation for `upstream/uncloud/internal/fs` / future `crates/ployz-internal-fs`. |
 
 ## Decision
 
-Select a bounded Linux/macOS split, not a Unix-wide NSS wrapper:
+Do not approve a Unix NSS dependency or start `internal/fs` implementation yet.
 
-- On `target_os = "linux"`, open and parse `/etc/passwd` and `/etc/group` in
-  safe Rust with no dependency. This is the backend for all currently shipped
-  Linux `uc` and `uncloudd` artifacts, on GNU and musl targets alike.
-- On `target_os = "macos"`, call native `getpwnam_r`, `getgrnam_r`, and
-  `sysconf` through exactly `libc` 0.2.189 in one crate-private safe boundary.
-- On Linux and macOS, use `std::os::unix::fs::chown`; wrap it only to preserve
-  lookup order, retry `Interrupted`, and add operation context.
-- Do not use `cfg(unix)`. No behavior is approved here for BSD, AIX, Solaris,
-  Android, Redox, WASI, or Windows.
+The capability has two separable conclusions:
 
-This remains the researcher's provisional candidate, not an approved selection.
-The completed adversarial review found that source analysis and cross-target
-compilation do not close the runtime/platform and scope-authority gates recorded
-as D01-D03 below.
+1. The released Linux artifacts can preserve lookup behavior with a small,
+   dependency-free, safe Rust parser for `/etc/passwd` and `/etc/group`, plus
+   `std::os::unix::fs::chown` for ownership. This sub-design passes the
+   dependency gate but does not by itself unblock a package that must also ship
+   on macOS.
+2. The released macOS CLI uses Go's native account backend even when cgo is not
+   available on Darwin. That backend reaches the macOS account database/Open
+   Directory. Direct `libc`, `nix`, `users`, `uzers`, `pwd`, `etc-passwd`, and
+   `objc2-open-directory` all reach native code through target-runtime FFI.
+   Files parsing and subprocess adapters are pure-Rust application code but do
+   not preserve the native lookup contract. No candidate passes both parity
+   and the pure-Rust target-runtime gate.
 
-This asymmetry is required behavior, not an optimization. Go's account backend
-is selected at build time. Ordinary cgo-enabled Linux builds use libc/NSS, but
-every shipped Linux release path in this repository disables cgo and therefore
-uses Go's files-only backend. The macOS release uses the native backend. A
-future Rust development mode intended to imitate ordinary cgo-enabled Linux
-must make that backend an explicit artifact/profile choice and amend this
-decision; ambient GNU linkage must not silently change released behavior.
+Do not silently weaken this result to Linux-only support or files-only macOS.
+Both would contradict the frozen release matrix and the port objective.
 
-## Oracle and artifact authority
+## Oracle and caller contract
 
-- [`internal/fs/fs.go`](../../upstream/uncloud/internal/fs/fs.go) looks up the
-  user before the group, parses textual IDs as Go `int`, treats an empty
+- [`internal/fs/fs.go`](../../upstream/uncloud/internal/fs/fs.go) looks up a
+  user before a group, parses returned textual IDs as Go `int`, treats an empty
   username/group as independently omitted only for `Chown`, calls `os.Chown`
   even when both are omitted, and wraps lookup, UID parse, GID parse, and chown
-  failures separately. The package's existing test covers only home expansion.
-- Direct callers require user+group ownership, group-only ownership, and
-  UID+primary-GID rendering for the Corrosion container. See
+  failures separately. Its existing tests cover only home expansion.
+- Direct callers require user-plus-group ownership, group-only ownership, and
+  UID-plus-primary-GID rendering. See
   [`machine.go`](../../upstream/uncloud/internal/machine/machine.go),
   [`corroservice/config.go`](../../upstream/uncloud/internal/machine/corroservice/config.go),
   [`corromigrate/migrate.go`](../../upstream/uncloud/internal/machine/corromigrate/migrate.go),
   and
   [`caddyconfig/controller.go`](../../upstream/uncloud/internal/machine/caddyconfig/controller.go).
-  The related socket setup also distinguishes unknown group from other lookup
-  failures before performing a group-only chown.
-- [`.goreleaser.yaml`](../../upstream/uncloud/.goreleaser.yaml) builds Linux
-  `uc` and Linux-only `uncloudd` for amd64/arm64 with `CGO_ENABLED=0`, while the
-  macOS `uc` builds use cgo. [`mise.toml`](../../upstream/uncloud/mise.toml) and
-  [`Dockerfile`](../../upstream/uncloud/Dockerfile) pin Go 1.26.1; the Docker
-  daemon build independently sets `CGO_ENABLED=0` and copies the result into an
-  Alpine Docker-in-Docker image. The nightly workflow invokes this GoReleaser
-  configuration.
+- Lookup and ownership are synchronous and uncached. There is no cancellation
+  input. A native directory provider may block; the oracle does not add a
+  timeout or cancellation path.
 - Go 1.26.1's official
-  [`lookup_unix.go`](https://github.com/golang/go/blob/go1.26.1/src/os/user/lookup_unix.go)
-  selects the files parser for non-Darwin Unix without cgo. Its official
-  [`cgo_lookup_unix.go`](https://github.com/golang/go/blob/go1.26.1/src/os/user/cgo_lookup_unix.go)
-  selects native lookup for cgo Unix and Darwin, uses `sysconf`, retries
-  `ERANGE`, caps the buffer at 1 MiB, and treats `ENOENT` or success with no
-  result as not found.
+  [`lookup_unix.go`](https://go.dev/src/os/user/lookup_unix.go) selects the
+  files backend on non-Darwin Unix when cgo is disabled. Its official
+  [`cgo_lookup_unix.go`](https://go.dev/src/os/user/cgo_lookup_unix.go) selects
+  native lookup for `(cgo || darwin)`, retries `ERANGE`, caps scratch storage at
+  1 MiB, and treats `ENOENT` or success with a null result as not found.
 - Apple's official
   [`getpwnam_r` manual](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/getpwnam.3.html)
-  and
-  [`getgrnam_r` manual](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/getgrnam.3.html)
-  specify caller-owned record/buffer storage, thread safety, zero on success,
-  and `ERANGE` for insufficient storage. Apple describes
-  [Open Directory](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/CoreOSLayer/CoreOSLayer.html)
-  as access to local and network account databases, including LDAP and Active
-  Directory providers.
+  identifies the API as part of the standard C library. Apple's
+  [Open Directory overview](https://developer.apple.com/library/archive/documentation/Porting/Conceptual/PortingUnix/additionalfeatures/additionalfeatures.html)
+  states that Open Directory supplies local and remote administrative/user
+  information, including LDAP-backed accounts.
+- Rust's official
+  [`std::os::unix::fs::chown`](https://doc.rust-lang.org/std/os/unix/fs/fn.chown.html)
+  accepts `Option<u32>` IDs, follows the final symlink, documents privilege
+  requirements, and preserves the kernel's set-ID-bit and capability effects.
 
-### Supported artifacts and linkage
+## Exact target and build matrix
 
-| Released artifact | Lookup contract | Dependency/linkage result |
-| --- | --- | --- |
-| Linux `uc`, amd64/arm64 | `/etc/passwd` and `/etc/group` only | Safe parser, no dependency. Dynamic GNU linkage must not activate NSS. |
-| Linux `uncloudd`, amd64/arm64 | `/etc/passwd` and `/etc/group` only | Safe parser, no dependency. The normal release is a cgo-free Go artifact. |
-| Docker `uncloudd`, amd64/arm64 | Files inside the Alpine-based image only | The lookup design introduces no glibc/NSS requirement. Final Rust musl/static packaging is still a release/integration authority gate. |
-| macOS `uc`, Intel/Apple Silicon | Native account database/Open Directory | Target-only `libc` and normal `libSystem` linkage. Both targets compile; native runtime is unverified. |
-| Ordinary cgo-enabled Linux development build | Native libc/NSS in Go, but not a shipped artifact | Not selected by this released-artifact decision. Add an explicit backend/profile only if the controller makes this a supported Rust artifact. |
+The account backend is an artifact property, not simply an operating-system
+property.
 
-## Required Linux files backend
+| Frozen build path | Targets | Go account backend | Pure-Rust port consequence |
+| --- | --- | --- | --- |
+| GoReleaser `uc` | Linux amd64/arm64 | Explicit `CGO_ENABLED=0`; fixed files | No dependency; safe files parser. |
+| GoReleaser `uncloudd` | Linux amd64/arm64 | Explicit `CGO_ENABLED=0`; fixed files | No dependency; safe files parser. |
+| Docker `uncloudd` stage | Linux amd64/arm64 in Alpine | Explicit `CGO_ENABLED=0`; image files | No dependency; safe files parser. Final Rust artifact linkage remains an integration check, not a reason to add NSS. |
+| GoReleaser `uc` | macOS amd64/arm64 | Explicit cgo plus Darwin-native backend; local and Open Directory accounts | **Blocked:** exact behavior requires a native API, but target-runtime FFI is not authorized by the pure-Rust objective. |
+| `mise` `build:uncloudd-*` | Linux amd64/arm64 | No explicit CGO setting, so host/toolchain dependent. On this Linux/amd64 host the amd64 output used cgo/native glibc NSS and the arm64 cross-output used the files backend. | Development helper behavior is not a stable backend contract. If it is declared in scope, its native-NSS variant adds the same FFI conflict. |
+| `mise` `uc` / ordinary `go run` | Host target | Native on cgo-enabled Linux; native on Darwin | Not a released artifact. If controller authority includes it, native Linux NSS also remains blocked under the pure-Rust gate. |
 
-Use a small domain parser, not a general account-management abstraction. The
-production entry points open the fixed files on every call; private reader-based
-helpers make the parser testable. Do not cache, consult `nsswitch.conf`, call
-libc, spawn `getent`, honor environment overrides, or expand NIS `+`/`-`
-records.
+The frozen [`.goreleaser.yaml`](../../upstream/uncloud/.goreleaser.yaml) and
+[`Dockerfile`](../../upstream/uncloud/Dockerfile) make the released rows
+deterministic. [`mise.toml`](../../upstream/uncloud/mise.toml) does not set
+`CGO_ENABLED` for its Linux build helpers, so it cannot justify one ambient
+Rust backend.
 
-The parser must preserve these Go 1.26.1 rules:
+## Approved Linux files-backend contract
 
-1. Accept account names as Unix bytes (`&OsStr` is the natural boundary). Read
-   logical lines as bytes. Apply Go `bytes.TrimSpace` behavior: trim the Unicode
-   White_Space set at both ends while retaining invalid UTF-8 bytes; then skip
-   blank lines and lines whose first remaining byte is `#`.
-2. For users, accumulate through at least six colons and split at most seven
-   ways. For groups, accumulate through at least three colons and split at most
-   four ways. Compare field zero exactly; reject an empty name and records whose
+The future implementation may use this design unchanged if the whole
+capability is unblocked.
+
+Use a small domain parser, not a general account-management abstraction. Open
+the fixed files on each call. Reader-based private helpers provide tests. Do
+not cache, consult `nsswitch.conf`, invoke libc/NSS, spawn `getent`, honor
+environment overrides, or expand NIS `+`/`-` records.
+
+Preserve Go 1.26.1's files parser:
+
+1. Accept account names as Unix bytes (`&OsStr`). Read logical lines as bytes.
+   Match Go `bytes.TrimSpace`: trim Unicode White_Space at each end while
+   retaining invalid UTF-8 bytes. Skip blank lines and lines whose first
+   remaining byte is `#`.
+2. For users, buffer through at least six colons and split at most seven ways.
+   For groups, buffer through at least three colons and split at most four
+   ways. Compare field zero exactly. Reject an empty name and records whose
    name begins `+` or `-`.
 3. Validate a matched user's UID and primary GID, or a matched group's GID, as
-   signed decimal `i64`, the `strconv.Atoi` range on every released 64-bit
-   architecture. A malformed or overflowing matched record is skipped; a later
-   duplicate valid record may win. Return the first valid match. If none is
-   valid, return typed unknown-user/unknown-group, not a parse error.
-4. Preserve the returned signed values through the natural Rust result model.
-   The second `Atoi` in `internal/fs` cannot fail after the files backend has
-   validated the fields, but UID-versus-primary-GID parse context remains a
-   traceability case rather than a fabricated string round trip.
-5. Preserve large-record behavior. Before the required colon count, growth is
-   not subject to an invented line cap. After enough columns are buffered, a
-   matching record can return without reading its irrelevant suffix; a
-   nonmatch must drain that suffix. Thus an I/O error in an unread suffix is not
-   observed after a match, while an error encountered while searching is.
-6. File-open and read errors are distinct from not-found and receive
-   user/group lookup context. Malformed records are not I/O errors. Drop/close
-   errors are ignored, matching Go's deferred close.
+   signed decimal `i64`, matching `strconv.Atoi` on every released 64-bit
+   target. Skip a malformed or overflowing matched record so a later duplicate
+   valid record may win. Return the first valid match. If none is valid, return
+   typed unknown-user/unknown-group, not a parse error.
+4. Preserve large-record streaming. Before the required colon count there is
+   no invented line cap. Once enough fields are buffered, a match may return
+   without reading its irrelevant suffix; a nonmatch must drain the suffix.
+   Consequently an I/O error in an unread suffix is hidden after a match but
+   observed while searching.
+5. Distinguish file-open/read errors from not-found, with user/group context.
+   Malformed records are not I/O errors. Ignore close errors, matching the
+   oracle's deferred close.
 
-Go's own 1.26.1 parser tests cover leading comments/space, `+`/`-` records,
-missing fields, malformed IDs, negative IDs, and large group/member records.
-The package must add the missing duplicate, overflow, I/O, NUL, invalid UTF-8,
-and streaming-limit cases listed below.
+### Linux byte and numeric edges
 
-### Linux byte and numeric edge contract
+- Embedded NUL in the requested name is an ordinary byte on the files path.
+  It is normally unknown, but a malformed account file containing that byte
+  can match. Do not use `CString` on Linux.
+- Accept signed values through `i64::MAX`, including negatives and values above
+  `u32::MAX`. At ownership time, narrow with the oracle's modulo-2^32 result
+  (`id as u32`); do not add validation the oracle lacks.
+- `-1`, `4294967295`, and every value congruent to `u32::MAX` collide with the
+  kernel all-ones "leave unchanged" sentinel. The named identity cannot be
+  assigned by pathname `chown`; the other ID may still change. Preserve this
+  limitation in tests.
+- Account files are normally privileged, but malformed IDs and unbounded
+  prefixes remain observable security/denial-of-service behavior. The parser
+  contains no `unsafe`.
 
-- A NUL in the requested account name is an ordinary byte on the files path.
-  It is normally unknown, but a deliberately malformed account file containing
-  that byte can match. Do not use `CString` or classify it as invalid input on
-  Linux.
-- Signed values including negatives and values above `u32::MAX` are accepted
-  through `i64::MAX`. When ownership is attempted, narrow with the same
-  two's-complement modulo-2^32 result as the released Go syscall path
-  (`value as u32`); do not add validation the oracle lacks.
-- Therefore `-1`, `4294967295`, and every value congruent to `u32::MAX` collide
-  with the kernel all-ones “leave unchanged” sentinel. The requested identity
-  cannot be assigned by pathname `chown`; the other ID may still change. This
-  parity limitation is explicit and must be tested.
+## Ownership contract
 
-The account files are normally root-controlled, which limits attacker control
-over malformed IDs and unbounded prefixes, but it does not erase these security
-and denial-of-service semantics. The implementation must contain no `unsafe`.
+Use `std::os::unix::fs::chown` on Linux and macOS:
 
-## Required macOS native backend
-
-Use direct reentrant calls behind one private safe module. Return only copied
-numeric IDs; no libc record, string pointer, or scratch-buffer borrow may
-escape.
-
-1. Accept `&OsStr`, copy all bytes, and append one terminator. Deliberately do
-   not use `CString::new`: Go's Darwin/native path also leaves embedded NUL
-   bytes in that buffer, so `root\0suffix` is presented to libc as `root` and
-   can resolve successfully. This prefix-truncation flaw differs from Linux's
-   files path and is preserved, not normalized.
-2. Use `sysconf(_SC_GETPW_R_SIZE_MAX)` or
-   `sysconf(_SC_GETGR_R_SIZE_MAX)`. Exactly `-1` selects the Go fallback of
-   1024 bytes; another nonpositive or greater-than-1-MiB suggestion selects
-   1 MiB. On `ERANGE`, double with checked arithmetic and stop with a distinct
-   buffer-limit error before exceeding 1 MiB.
-3. On every attempt create a fresh initialized scratch buffer, a null result
-   pointer, and `MaybeUninit::<libc::passwd/group>::zeroed()`. `libc`'s official
-   [usage guidelines](https://docs.rs/libc/0.2.189/libc/#usage-guidelines)
-   explicitly prohibit `MaybeUninit::uninit()` followed by whole-struct
-   `assume_init` for libc structs because padding or future fields may remain
-   uninitialized. Never call `assume_init`; after successful native lookup,
-   read only `pw_uid`, `pw_gid`, or `gr_gid` through raw field pointers.
-4. Classify the function's returned integer, not ambient `errno`: `0` plus
-   null is typed not-found; `ENOENT` is typed not-found; `ERANGE` retries; any
-   other nonzero code becomes `io::Error::from_raw_os_error(code)` with
-   account context. A nonnull result on success is never dereferenced; if it
-   is not the caller-owned record pointer, fail an internal ABI-invariant check.
-5. Keep lookup synchronous, uncached, and safe for concurrent callers. Native
-   directory lookup may block on IPC/network providers and has no portable
-   cancellation mechanism; async callers must move it off latency-sensitive
-   executor threads.
-
-The rejected proposal failed this boundary by recommending uninitialized libc
-records followed by `assume_init`, and it incorrectly selected native NSS for
-all Unix targets. This repair removes all Linux lookup FFI and follows libc's
-published initialization guidance on the sole native target.
-
-## Ownership and returned outcomes
-
-Rust's stable
-[`std::os::unix::fs::chown`](https://doc.rust-lang.org/std/os/unix/fs/fn.chown.html)
-accepts `&Path`, uses `Option<u32>` for independently unchanged IDs, follows a
-final symlink, and documents privilege, set-ID-bit, and capability effects. Use
-it on exactly Linux and macOS:
-
-- preserve non-UTF-8 path bytes by accepting `&Path`;
-- map an omitted name to `None`, and a found signed ID to `Some(id as u32)`;
+- accept `&Path` to preserve non-UTF-8 bytes;
+- map an omitted name to `None` and a found signed ID to `Some(id as u32)`;
 - call `chown(path, None, None)` when both names are empty;
 - retry only `io::ErrorKind::Interrupted`, matching Go `os.Chown`;
-- use `chown`, never `lchown`, so the final symlink is followed and a broken
-  link fails;
-- treat a path containing NUL as a contextual chown/input failure without a
-  syscall or prefix truncation. Go exposes `EINVAL`; Rust `std` naturally
-  exposes `InvalidInput` with no raw errno. No caller performs errno matching,
-  so the required contract is the distinct failure and original path context;
-  do not add Linux libc merely to manufacture errno 22; and
-- preserve kernel outcomes. Do not pre-authorize, retry permission errors,
-  restore cleared set-user-ID/set-group-ID bits or file capabilities, suppress
-  ctime changes, or emulate ownership in metadata.
+- use `chown`, not `lchown`, so the final symlink is followed and a broken link
+  fails;
+- preserve a NUL pathname as a contextual input/chown failure without prefix
+  truncation; and
+- do not pre-authorize, suppress kernel errors, restore cleared mode bits or
+  capabilities, suppress ctime changes, or skip same-owner calls.
 
-Linux [`chown(2)`](https://man7.org/linux/man-pages/man2/chown.2.html) documents
-the all-ones sentinel, symlink following, `CAP_CHOWN`/group restrictions,
-set-ID-bit clearing, capability clearing, and filesystem/path errors. The
-natural crate-private result model must retain:
+Lookup order is user, then group, then chown. A user failure prevents group
+lookup and ownership. A group failure prevents ownership.
 
-| Operation | Required outcomes |
-| --- | --- |
-| Files lookup | Found signed IDs; typed unknown user/group; contextual file open/read error |
-| Native lookup | Found native IDs; typed unknown user/group; contextual returned-code error; buffer limit; internal result-pointer invariant |
-| Ownership | Contextual path/input or OS error retaining the `io::Error`; retry only `Interrupted` |
+## Candidate comparison
 
-User lookup precedes group lookup, and either failure prevents all later work.
-Group lookup never runs after user failure; chown never runs after either lookup
-failure.
+| Candidate | Pure-Rust target runtime | Behavior result | Decision |
+| --- | --- | --- | --- |
+| Project-owned files parser + `std::chown` | Yes at application/dependency level; no direct FFI or target C dependency | Exact for released Linux files backend and pathname ownership | **Passing sub-design**, but cannot preserve shipped macOS lookup. |
+| `libc = "=0.2.189"` on macOS | No; direct unsafe C ABI calls and `libSystem` linkage | Closest match to Go's `getpwnam_r`/`getgrnam_r`, including native directory providers and returned-code semantics | Reject under the current pure-Rust rule. This is the narrowest exception that could unblock macOS if explicitly authorized. |
+| `objc2-open-directory = "=0.3.2"` | No; generated unsafe Objective-C/framework FFI | Reaches Open Directory, but exposes a different query/error/string model and cannot preserve arbitrary Unix name bytes or Go's embedded-NUL prefix behavior | Reject at pure-Rust and behavior gates. |
+| `nix = "=0.31.3"`, `users = "=0.11.0"`, `uzers = "=0.12.2"`, `pwd = "=1.4.0"`, `etc-passwd = "=0.2.2"` | No; these wrap libc/native account APIs | Native Linux is wrong for released files-only artifacts; public APIs also collapse or alter required NUL/error/signed-ID behavior | Reject at scope and behavior gates. |
+| Parse `/etc/passwd` and `/etc/group` on macOS | Yes | Loses non-files Open Directory accounts and provider failures shipped by `uc` | Reject at macOS parity gate. |
+| Spawn `dscl`, `dscacheutil`, `id`, or `getent` | Rust process code is pure, but relies on external executables | Cannot pass embedded-NUL arguments, changes error/timeout/environment/process behavior, and has no cross-platform exact contract | Reject at behavior and architecture gates. |
+| Implement Open Directory IPC/protocol directly | Hypothetically | No supported public wire protocol or maintained pure-Rust implementation was found; reimplementing private platform IPC is not a verifiable dependency choice | Reject as unsupported and unauditable. |
+
+`cargo search` on the research date found `objc2-open-directory` as the only
+credible Rust ecosystem binding specifically for the macOS framework. Its
+published manifest and generated source declare external FFI bindings and
+unsafe Objective-C methods. The other credible account crates publish libc
+interfaces. Popularity cannot override a failed hard gate.
 
 ## Hard gates
 
 | Gate | Evidence | Result |
 | --- | --- | --- |
-| Required behavior | Frozen release/build configuration establishes files-only shipped Linux and native macOS, but normal cgo-enabled Linux and `mise` workflows observe native NSS. The bounded split is technically coherent only after the supported-artifact authority chooses how that difference is scoped. | `blocked` by D03 |
-| License and security | Linux lookup is safe project code. `libc` is `MIT OR Apache-2.0`; unsafe is confined to macOS `_r` calls/raw scalar reads with zeroed storage and bounded allocation. No shell, cache, Linux NSS module, or account-editing API is added. Privileged ownership side effects have not been exercised on every shipped architecture. | `blocked` by D01 despite passing source/license analysis |
-| Platforms and targets | Linux amd64/arm64 and macOS amd64/arm64 are proposed. Cross-checks prove macOS declarations/type-checking only. Exact Rust release triples/linkage and running amd64/arm64 Docker artifacts are not defined or verified. No `cfg(unix)` claim. | `blocked` by D01 and D02 |
-| Maintenance and Rust version | `libc` 0.2.189 was current on the research date, released 2026-07-21, declares Rust 1.65, and compiled under Rust 1.96 for both Apple architectures. `std::chown` has been stable since Rust 1.73. | `pass` |
-| Architectural constraints | Synchronous, no runtime/process/service, fresh per-call state, minimal graph, natural Path/ID/error API. | `pass` |
+| Required behavior | Released Linux rows are files-only; shipped macOS `uc` is native/Open Directory. Files parsing preserves the former but not the latter. | `fail` for the complete capability |
+| Pure-Rust architecture | Linux parser and `std::chown` require no direct target FFI. Every credible macOS native candidate uses C or Objective-C FFI; subprocess and private-protocol substitutes fail parity. | `fail` on macOS |
+| License and security | The dependency-free Linux sub-design passes. No native dependency is selected, so no license/security claim can turn the complete decision into approval. Privileged ownership effects remain package/platform acceptance obligations. | `pass` for Linux sub-design; incomplete overall |
+| Platforms | Released Linux amd64/arm64 and macOS amd64/arm64 are in scope. Only native Linux amd64 ran here. Cross-compilation is not macOS/Open Directory runtime evidence, and arm64 Docker execution failed without binfmt/QEMU. | `fail` for complete matrix |
+| Maintenance and Rust version | Project code and Rust 1.96 `std` are sufficient for Linux. The only plausible macOS exception, `libc 0.2.189`, is not selectable without scope authority. | `pass` only for Linux sub-design |
 
-Overall status remains **blocked**, not approved.
-
-## Candidate comparison
-
-Official crates.io metadata captured on 2026-08-11 is an adoption signal, not a
-substitute for the hard gates.
-
-| Candidate | Evidence and fit | Decision |
-| --- | --- | --- |
-| Safe Linux files parser + macOS-only [`libc` 0.2.189](https://crates.io/crates/libc/0.2.189) + `std::chown` | Exact released backend split; no Linux dependency/unsafe; only one highly adopted macOS binding crate. `libc` reported 1,466,932,142 total and 318,712,551 recent downloads, Rust 1.65 MSRV, and a fresh 2026-07-21 release. | **Selected provisionally:** smallest design that passes released behavior. |
-| Direct `libc` on all Unix targets, rejected proposal | Native NSS mechanics can be correct, but Linux NSS observes providers and errors absent from every shipped cgo-free Linux artifact. `cfg(unix)` overclaims, and the proposed uninit/`assume_init` pattern violates libc's guidance. | Reject at behavior, platform, and safety gates. |
-| [`nix` 0.31.3](https://crates.io/crates/nix/0.31.3), features `user,fs` | Popular (717,469,564 total / 158,901,341 recent downloads) and maintained, but native Linux lookup is wrong here. Its exact [lookup source](https://docs.rs/nix/0.31.3/src/nix/unistd.rs.html) uses uninit/`assume_init`, tests ambient `Errno::last()` instead of the `_r` return code on failure, and maps embedded-NUL names to `Ok(None)`. Rust `std` already supplies ownership. | Reject at behavior and exact-error/safety gates. |
-| [`users` 0.11.0](https://crates.io/crates/users/0.11.0) | Native Linux lookup is wrong and `Option` collapses not-found, NUL, NSS/OS, and invariant errors. Last released in 2020. RustSec marks it [unmaintained with unpatched unsoundness and a privilege-escalation advisory](https://rustsec.org/packages/users.html). | Reject at behavior, security, and maintenance gates. |
-| [`uzers` 0.12.2](https://crates.io/crates/uzers/0.12.2) | Maintained `users` fork, but still native on Linux and its public lookup API returns only `Option`, collapsing required errors and rejecting NUL instead of preserving target behavior. | Reject at behavior/error gate. |
-| Parse account files on macOS too | No dependency or unsafe, but loses native/Open Directory accounts and provider failures shipped by macOS `uc`. | Reject at macOS behavior gate. |
-| Spawn `getent` | Wrong for released files-only Linux, lacks an equivalent macOS contract, and adds executable discovery, environment, process, parsing, and cancellation surface. | Reject at behavior/platform/architecture gates. |
-
-No general passwd-parser crate is selected. The required Go-compatible parser is
-smaller than adapting a crate while retaining its unusual malformed-duplicate,
-Unicode-trim, NUL, signed-ID, streaming, and I/O-error behavior.
-
-## Required Cargo configuration
-
-Only the integrator/dependency steward may add the workspace/crate manifest and
-lockfile entry:
-
-```toml
-[target.'cfg(target_os = "macos")'.dependencies]
-libc = "=0.2.189"
-```
-
-Use libc's default `std` feature and no extra features. Do not add it under
-`cfg(unix)` or as an unconditional dependency. Do not add `nix`, `users`,
-`uzers`, a parser crate, or a subprocess dependency. A clean target probe
-confirmed the Linux dependency tree contains no `libc`, while each macOS tree
-contains only `libc 0.2.189` beyond the probe itself.
+Overall status is **blocked**. Do not add a Cargo dependency or unblock
+`internal/fs` from this record.
 
 ## Executable verification
 
-All probe sources and targets were outside the repository under `/tmp`.
+All generated artifacts remained outside the repository.
 
-Using the repository-pinned Go 1.26.1 toolchain:
-
-```text
-CGO_ENABLED=0 go test -count=1 os/user                 pass
-CGO_ENABLED=1 go test -count=1 os/user                 pass
-CGO_ENABLED=0 go test -count=1 ./internal/fs           pass
-CGO_ENABLED=1 go test -count=1 ./internal/fs           pass
-```
-
-A focused lookup probe resolved `root` in both modes. For
-`root\0suffix`, cgo-disabled user/group lookup returned typed unknown errors,
-while cgo-enabled lookup resolved `root`; this directly confirms the required
-target/backend NUL split. `file`/`ldd` reported the cgo-disabled probe as a
-static executable and the cgo-enabled probe as dynamically linked to glibc.
-Both Go modes returned a `PathError` wrapping `EINVAL` for a NUL pathname.
-
-A dependency-free Rust 1.96 ownership probe passed format and warnings-denied
-Clippy. A syscall trace observed:
+Using the repository-pinned Go 1.26.1 toolchain through `mise`:
 
 ```text
-chown(".../link", -1, -1) = 0
-chown(".../target", -1, -1) = 0
-chown(".../nonutf8-\377", -1, -1) = 0
+CGO_ENABLED=0 go test -count=1 os/user       pass
+CGO_ENABLED=1 go test -count=1 os/user       pass
+CGO_ENABLED=0 go test -count=1 ./internal/fs pass
+CGO_ENABLED=1 go test -count=1 ./internal/fs pass
 ```
 
-The symlink target retained its IDs, `Some(u32::MAX)` generated the same
-all-ones syscall sentinel as `None`, a non-UTF-8 path succeeded, and a NUL path
-failed as Rust `InvalidInput` before a syscall. Chowning a mode-6755 file to its
-existing UID/GID succeeded but changed its mode to 0755, confirming that even a
-same-owner call has observable set-ID effects and must not be elided.
+A focused `user.Lookup("root\0suffix")` probe produced typed unknown-user with
+`CGO_ENABLED=0` and resolved `root` with `CGO_ENABLED=1`, proving that files and
+native backends have observably different NUL handling.
 
-A clean Rust 1.96 target-only `libc` probe implemented zeroed storage,
-returned-code classification, pointer validation, raw-field-only reads, checked
-growth, and no `assume_init`. These all passed offline:
+On this Linux/amd64 host, the exact `mise` build environment reported:
 
 ```text
-cargo +1.96.0 fmt --check
-cargo +1.96.0 clippy --locked --target x86_64-unknown-linux-gnu -- -D warnings
-cargo +1.96.0 check  --locked --target x86_64-apple-darwin
-cargo +1.96.0 clippy --locked --target x86_64-apple-darwin -- -D warnings
-cargo +1.96.0 check  --locked --target aarch64-apple-darwin
-cargo +1.96.0 clippy --locked --target aarch64-apple-darwin -- -D warnings
-cargo +1.96.0 tree   --locked --target x86_64-unknown-linux-gnu
-cargo +1.96.0 tree   --locked --target x86_64-apple-darwin
-cargo audit --no-fetch --deny warnings
+linux/amd64 CGO_ENABLED=1
+linux/arm64 CGO_ENABLED=0
+darwin/amd64 CGO_ENABLED=0
+darwin/arm64 CGO_ENABLED=0
 ```
 
-RustSec scanned the two-package all-target lock at advisory database commit
-`d0861df1eab469d3c58d6b836ce48b5766e5f217` dated 2026-08-11 and reported no
-vulnerability. Cross-compilation proves declarations/type-checking, not native
-macOS runtime or Open Directory behavior. None of these focused probes built or
-ran the final Rust release artifacts, so they do not satisfy D01 or D02.
+Building the two Linux daemon outputs with those defaults (plus
+`-buildvcs=false` solely because this isolated worktree cannot be VCS-stamped)
+produced a dynamically linked amd64 ELF requiring `libc.so.6`, and a statically
+linked arm64 ELF. This confirms that the unqualified `mise` helper is
+host-dependent and cannot define the released backend.
 
-## Required package acceptance
+Docker 29.1.3 ran `alpine:3.23.3` natively on amd64 and resolved `root` from the
+container account files. The multi-architecture manifest contains arm64, but
+arm64 execution failed with `exec format error` because this host has no
+binfmt/QEMU handler. No arm64 runtime result is claimed. No final Rust daemon
+artifact exists yet, so this probe is environment evidence rather than final
+release acceptance.
 
-The future package must add tests for:
+The earlier dependency-free ownership probe remains valid evidence for the
+standard-library API: non-UTF-8 paths succeeded, NUL paths failed before a
+syscall, `Some(u32::MAX)` matched the all-ones sentinel, final symlinks were
+followed, and a same-owner call cleared set-ID bits. Rust 1.96 target checks
+also proved `std::chown` declarations for Linux/macOS targets. These facts do
+not solve native macOS account lookup.
 
-1. Linux file fixtures with ASCII/Unicode whitespace, CRLF, comments, blank
-   lines, invalid UTF-8, empty/short rows, `+`/`-` rows, duplicate malformed then
-   valid rows, duplicate valid rows, embedded NUL, signed/plus-prefixed IDs,
-   `i64` boundaries/overflow, and all-ones/modulo collisions.
-2. Linux streaming fixtures with huge prefixes, huge discarded suffixes,
+## Required package acceptance after unblocking
+
+1. Linux fixtures covering ASCII/Unicode whitespace, CRLF, comments, blank
+   lines, invalid UTF-8, short rows, `+`/`-` rows, duplicate malformed/valid
+   rows, embedded NUL, signed and plus-prefixed IDs, `i64` boundaries,
+   overflow, and all-ones/modulo collisions.
+2. Linux streaming fixtures with huge prefixes and discarded suffixes,
    newline-free final records, injected open/read errors before a match, and an
-   error in a suffix that is skipped after a match but observed while draining
-   a nonmatch. Do not impose an undocumented line cap.
-3. A GNU/Linux fixture with a successful non-files NSS user/group that remains
-   unknown to the selected package backend, proving ambient dynamic linkage
-   cannot change released lookup semantics.
-4. macOS native current/local and directory-service user/group success,
-   unknown results, `name\0suffix` prefix lookup, absent/excessive `sysconf`,
-   forced `ERANGE`, non-`ERANGE` returned errors, `ENOENT`, cap exhaustion,
-   unexpected result pointer, and concurrent calls on a real host.
-5. User+group, user-only, group-only, and both-omitted calls; user-before-group
-   short-circuiting; missing and broken-symlink paths; non-UTF-8 and NUL paths;
-   final-symlink following; `Interrupted` retry; permission denial; and no
-   syscall after lookup failure.
-6. Privileged disposable Linux and macOS fixtures for actual UID/GID changes,
-   all-ones identity collision, set-ID-bit/capability clearing, and ctime. These
-   cases must not be weakened because ordinary CI is unprivileged.
-7. Rust 1.96 formatting, targeted all-target tests/checks, and warnings-denied
-   Clippy for Linux amd64/arm64 and macOS amd64/arm64, plus release artifact
-   inspection proving Linux uses the files backend and Docker packaging has no
-   accidental glibc/NSS requirement.
+   error hidden in a matched unread suffix but observed while draining a
+   nonmatch. Do not impose an undocumented line cap.
+3. A GNU/Linux fixture where native NSS resolves an account absent from the
+   files, proving the released backend remains files-only despite ambient GNU
+   linkage.
+4. User-plus-group, user-only, group-only, and both-omitted ownership;
+   user-before-group short-circuiting; missing/broken-symlink paths;
+   non-UTF-8/NUL paths; final-symlink following; `Interrupted` retry;
+   permission denial; and no syscall after lookup failure.
+5. Privileged disposable Linux amd64/arm64 fixtures for real ID changes,
+   all-ones collision, set-ID/capability clearing, and ctime.
+6. If a macOS FFI exception is authorized: native amd64/arm64 tests for local
+   and non-files Open Directory accounts, typed not-found, returned errors,
+   forced `ERANGE`, buffer cap, concurrency, embedded-NUL prefix behavior,
+   safe copied scalar results, and privileged ownership effects. Cross-checks
+   from Linux are insufficient.
+7. Rust 1.96 formatting, targeted all-target tests/checks, warnings-denied
+   Clippy, and final release-artifact inspection for every shipped target.
 
-## Completed adversarial review and blocking gates
+## Review state and unlock impact
 
-Fresh adversarial review of candidate commit
-`10cb71def83042c6db782896758f627a1dc87875` returned **REJECTED**. The reviewer
-did not invalidate the source-derived parser/native/chown design or the focused
-probes above. It rejected approval because those probes cannot establish the
-runtime artifact contract and because the normal cgo-enabled Linux scope has no
-controller/human authority.
+This rewrite deliberately rejects the prior FFI selection instead of carrying
+its D01-D03 approval path forward. The smallest remaining blocker is now the
+explicit parity-versus-pure-Rust conflict for shipped macOS account lookup.
 
-The record remains blocked on exactly these gates:
+A fresh adversarial reviewer must confirm:
 
-### D01 — native macOS and privileged ownership runtime evidence
-
-Supply native, executable evidence on both shipped macOS architectures
-(`x86_64-apple-darwin` and `aarch64-apple-darwin`) for local and non-files Open
-Directory user/group lookup, typed not-found, returned errors, forced `ERANGE`,
-concurrent calls, embedded-NUL prefix behavior, and the zeroed/raw-field unsafe
-boundary. Cross-compilation is insufficient.
-
-Also supply disposable privileged chown evidence on every shipped Linux and
-macOS architecture. It must exercise real UID/GID changes, user-only,
-group-only, both unchanged, all-ones collision, symlink following and broken
-links, non-UTF-8/NUL paths, permission failures, `Interrupted` handling,
-set-ID-bit/file-capability effects, and ctime. Record the host/runner, target,
-commands, and observed metadata/errors; do not infer one architecture's result
-for another.
-
-### D02 — exact Rust release targets, linkage, and Docker artifacts
-
-The controller/integrator must define the exact Rust target triples and linkage
-for Linux `uc`, installed `uncloudd`, Docker `uncloudd`, and both macOS
-architectures. “Linux”, “GNU/musl independent”, and a target-only Cargo graph
-are not release artifact definitions.
-
-Then build and inspect the actual Rust release outputs. For Docker, build both
-amd64 and arm64 images from the intended release pipeline, inspect the embedded
-binary's ELF interpreter/dynamic dependencies and architecture, start each
-image on its matching architecture, and execute lookup plus ownership paths in
-the Alpine runtime. Evidence must show the daemon starts, uses only the
-container's `/etc/passwd` and `/etc/group`, does not acquire host/glibc NSS
-behavior, and performs required ownership changes. Any emulation used must be
-declared; emulation alone cannot establish architecture-specific privileged
-filesystem behavior.
-
-### D03 — authority for normal cgo-enabled Linux and `mise` scope
-
-The frozen repository's normal same-host cgo-enabled Linux behavior and
-`mise.toml` development workflows use native libc/NSS, unlike the proposed
-always-files Rust Linux backend. Source inspection cannot decide whether those
-observable development builds are in the port contract.
-
-Obtain an explicit controller/human decision choosing one of:
-
-1. released artifacts are authoritative and normal cgo-enabled Linux/`mise`
-   builds are expressly excluded, so every supported Rust Linux artifact uses
-   the files backend; or
-2. those builds remain supported, in which case define an explicit native-NSS
-   backend/profile, its Cargo feature and release-profile matrix, its `libc`
-   target configuration, differential tests, and which artifacts select it.
-
-Do not infer option 1 from GoReleaser or silently enable option 2 based on GNU
-linkage. Option 2 materially expands the dependency/platform design and needs
-fresh adversarial review.
-
-After D01-D03 are recorded, a fresh adversarial reviewer must recheck their
-closure plus parser fidelity, NUL/all-ones parity authority, the unsafe proof,
-current `libc` license/release/RustSec evidence, and the exact artifact matrix.
-
-Reviewer result: `rejected — candidate 10cb71def83042c6db782896758f627a1dc87875
-cannot be approved until D01-D03 are closed and freshly rereviewed`.
+- the release/development matrix above;
+- that no pure-Rust native macOS candidate was missed;
+- that direct macOS `libc` is correctly rejected absent explicit authority;
+- Linux parser, NUL, signed-ID, streaming, chown, and error fidelity; and
+- that this record does not imply unverified macOS or arm64 runtime evidence.
 
 Affected package: future `crates/ployz-internal-fs` / Go package
-`upstream/uncloud/internal/fs`. The separate machine-level group lookup may
-reuse this decision only if its package adopts the same exact artifact split
-and edge contract.
+`upstream/uncloud/internal/fs`. The machine-level group lookup may reuse the
+Linux sub-design only when it accepts the same artifact-specific contract.
