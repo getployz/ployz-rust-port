@@ -16,5 +16,5 @@ semantic-version-parsing	approved	migration/dependencies/semantic-version-parsin
 unix-account-lookup-chown	blocked	migration/dependencies/unix-nss-user-group-resolution.md	-	-	-	yes	internal/fs,internal/sshexec,internal/machine	/root/macos_nss_probe_fix
 docker-engine-client	blocked	migration/dependencies/docker-engine-client.md	bollard	0.21.0	MIT OR Apache-2.0	yes	internal/docker	/root/docker_engine_unblock
 http2-tls-client	blocked	migration/dependencies/http2-tls-client.md	-	-	MIT;MIT OR Apache-2.0	yes	internal/corrosion	-
-streaming-gzip-content-decoding	research-required	migration/dependencies/streaming-gzip-content-decoding.md	-	-	-	yes	internal/corrosion	pending-launch
+streaming-gzip-content-decoding	research-required	migration/dependencies/streaming-gzip-content-decoding.md	-	-	-	yes	internal/corrosion	/root/streaming_gzip_research
 userspace-wireguard-tunnel	blocked	migration/dependencies/userspace-wireguard-tunnel.md	-	-	-	yes	internal/machine/network/tunnel	-
