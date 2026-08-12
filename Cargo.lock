@@ -2054,6 +2054,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-pkg-client-deploy-scheduler"
+version = "0.0.0"
+dependencies = [
+ "ployz-internal-machine-api-pb",
+ "ployz-pkg-api",
+]
+
+[[package]]
 name = "ployz-scripts"
 version = "0.0.0"
 

@@ -22,6 +22,7 @@ members = [
     "crates/ployz-internal-metrics",
     "crates/ployz-internal-proxy",
     "crates/ployz-pkg-api",
+    "crates/ployz-pkg-client-deploy-scheduler",
     "crates/ployz-scripts",
 ]
 
