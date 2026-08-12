@@ -24,4 +24,4 @@ lossless-docker-engine-progress-streaming	human-decision-required	migration/depe
 prometheus-created-timestamp-prototext-parity	human-decision-required	migration/dependencies/prometheus-created-timestamp-prototext-parity.md	prometheus[protobuf];protobuf	0.14.0;3.7.2	Apache-2.0;MIT	yes	internal/machine/metrics	native:019ff27b-4e0f-7be0-9379-9108470a117d
 go-compatible-json-codec	research-required	migration/dependencies/go-compatible-json-codec.md	-	-	-	yes	internal/corrosion,internal/dns	-
 go-compatible-url-and-reference-resolution	research-required	migration/dependencies/go-compatible-url-and-reference-resolution.md	-	-	-	yes	internal/dns	-
-in-process-ssh-client	research-required	migration/dependencies/in-process-ssh-client.md	-	-	-	yes	internal/sshexec,pkg/client/connector	-
+in-process-ssh-client	research-required	migration/dependencies/in-process-ssh-client.md	-	-	-	yes	internal/sshexec,pkg/client/connector	native:019ff434-a235-7c82-b4cb-2cbc451512f3
