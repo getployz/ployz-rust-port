@@ -4,7 +4,7 @@ docker-oci-reference-parsing	approved	migration/dependencies/docker-oci-referenc
 prometheus-metrics	approved	migration/dependencies/prometheus-metrics.md	prometheus[protobuf]	0.14.0	Apache-2.0	no	internal/metrics,internal/machine/metrics	-
 randomized-exponential-backoff	approved	migration/dependencies/randomized-exponential-backoff.md	backon[std,tokio-sleep];fastrand[std]	1.6.0;2.5.0	Apache-2.0;Apache-2.0 OR MIT	yes	internal/docker,internal/corrosion,internal/machine/corroservice,internal/machine/cluster,internal/cli,internal/machine/docker,internal/ucind,pkg/client	-
 structured-logging-facade	approved	migration/dependencies/structured-logging-facade.md	tracing[std];tracing-subscriber[fmt,registry,std]	0.1.44;0.3.23	MIT	no	internal/log,internal/dns,internal/machine/corromigrate	-
-async-stream-network-runtime	approved	migration/dependencies/async-stream-network-runtime.md	tokio;tokio-util	1.53.1;0.7.19	MIT	yes	internal/proxy,internal/machine/store	-
+async-stream-network-runtime	approved	migration/dependencies/async-stream-network-runtime.md	tokio;tokio-util	1.53.1;0.7.19	MIT	yes	internal/proxy,internal/machine/store,pkg/client/deploy/operation	-
 synchronous-outbound-http-client	approved	migration/dependencies/synchronous-outbound-http-client.md	base64;bytes;flate2;h2;http;http-body-util;hyper;hyper-rustls;hyper-util;ipnet;tokio	0.22.1;1.12.1;1.1.9;0.4.15;1.5.0;0.1.4;1.11.0;0.27.9;0.1.20;2.12.1;1.53.1	MIT;MIT OR Apache-2.0	yes	internal/dns	-
 interactive-terminal-runtime	approved	migration/AUTHORITIES.tsv	iocraft[unstable-output-streams]	0.8.4	MIT OR Apache-2.0	yes	internal/cli/tui	-
 terminal-styling-layout	approved	migration/AUTHORITIES.tsv	iocraft[unstable-output-streams]	0.8.4	MIT OR Apache-2.0	yes	internal/cli/tui	-

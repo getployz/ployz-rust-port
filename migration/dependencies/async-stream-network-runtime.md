@@ -2,22 +2,23 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required` — Tokio is the best conditional runtime, but exact hostname/no-orphan behavior and the accepted-connection bound conflict with the oracle and lack scope authority |
-| Capability | Bounded, cancellation-safe TCP/Unix stream acceptance, deadline-bounded TCP dialing, supervised bidirectional copying, and write-half shutdown for `internal/proxy` |
-| Selected dependency | No approved selection; conditional candidate is Tokio `1.53.1` and tokio-util `0.7.19` |
+| Status | `approved` under the recorded user authority, including the 2026-08-12 delegated routine scope extensions |
+| Capability | Bounded cancellation-safe async networking, timers, selection, task supervision, and first-reason cancellation |
+| Selected dependency | Tokio `1.53.1` and tokio-util `0.7.19` |
 | License | `MIT` (both direct crates) |
 | Research date | `2026-08-11` UTC |
 | Request | Delegated capability request; no request file exists at the assigned integration base |
 | Integration base | `689686e18be585b3d4233f8fa6df36486315f440` |
 | Blocked package evidence | `/tmp/ployz-proxy-writer` commit `1040794b0e5696afd4ee1145b64902033217a0fa` |
-| Affected package | `ployz-internal-proxy` (`upstream/uncloud/internal/proxy`) |
+| Affected packages | `internal/proxy`, `internal/machine/store`, and `pkg/client/deploy/operation` |
 
-The conditional stack is the popular, idiomatic candidate. It replaces
+The selected stack is the popular, idiomatic candidate. It replaces
 the rejected implementation's blocking listener clones and per-connection OS
 threads with cancellation-safe readiness futures and supervised runtime tasks.
-It is **not approved**: the mandatory fresh adversarial review found unresolved
-behavior authority and verification gaps. The controller must not add it to the
-dependency registry as approved.
+The original research found behavior gaps that package owners must address.
+The user subsequently approved the exact stack and delegated routine scope
+extensions on 2026-08-12. This does not waive package-level parity, supervision,
+or fresh-review gates.
 
 ## Oracle and blocked-implementation evidence
 
@@ -130,19 +131,18 @@ crates.io API on `2026-08-11`.
 
 | Candidate | Behavior and platform fit | Adoption and maintenance | Integration cost | Disposition |
 | --- | --- | --- | --- | --- |
-| **Tokio `1.53.1` + tokio-util `0.7.19`** | First-party cancel-safe TCP/Unix accept, TCP socket futures, fixed-buffer bidirectional copy, semaphore, task set, timers, and cancellation token; Linux/macOS/Windows support. Raw copy shutdown errors and default hostname resolution need deliberate handling. | 868.4M/703.9M downloads; current July 2026 releases; 67,828/6,612 reverse-dependency rows; used across Hyper/Axum/Tonic and already the conditional runtime family in the repository's HTTP-server research. | Two direct crates; 17 registry packages in the cross-target probe lock; one proc macro dependency for `select!`/tests. | **Best conditional candidate, not approved while behavior gates fail.** |
+| **Tokio `1.53.1` + tokio-util `0.7.19`** | First-party cancel-safe TCP/Unix accept, TCP socket futures, fixed-buffer bidirectional copy, semaphore, task set, timers, and cancellation token; Linux/macOS/Windows support. Raw copy shutdown errors and default hostname resolution need deliberate handling. | 868.4M/703.9M downloads; current July 2026 releases; 67,828/6,612 reverse-dependency rows; used across Hyper/Axum/Tonic and already the runtime family in the repository's HTTP-server decision. | Two direct crates; 17 registry packages in the cross-target probe lock; one proc macro dependency for `select!`/tests. | **Approved exact stack; package-owned adapters retain the behavior gates.** |
 | smol `2.0.2` family | Async TCP/Unix is possible, but equivalent cancellation tokens, task supervision, bounded lifecycle, and exact bidirectional half-close must be assembled from additional sibling crates; its facade does not document this complete lifecycle contract. | 20.4M downloads, 679 reverse-dependency rows; latest release 2024-09-07; MSRV 1.63. | Smaller pieces individually, more direct crates and more custom orchestration for this capability. | Rejected: materially less adopted and maintained for no behavior advantage. |
 | async-std `1.13.2` | Similar high-level sockets but no first-party equivalent complete supervision/cancellation/copy stack. | Its official package metadata says "Deprecated in favor of `smol`"; 88.2M historical downloads and 1,918 reverse-dependency rows; latest release 2025-08-15. | Would choose a deprecated facade and still add lifecycle utilities. | Rejected by maintenance gate. |
 | Mio/socket2 directly | Can express nonblocking TCP and platform readiness; Unix support is lower-level. | Tokio itself is the dominant maintained abstraction built on Mio/socket2. | Reimplements an executor, timers, cancellation, wake registration, task supervision, and copy state machines. | Rejected: unnecessary low-level networking/runtime implementation. |
 | Standard-library threads (rejected candidate) | Blocking cloned accept cannot be cancelled reliably after Unix unlink; connect/copy workers can outlive timeout; two copy threads plus a dial thread per connection. | Standard library is stable, but this architecture has no maintained cancellation/runtime layer. | Unbounded OS threads and application-owned wakeup tricks. | Rejected by behavior and resource gates; this is the reviewed failing design. |
 | Hickory Resolver `0.26.1` added to Tokio | Fully async DNS and system resolver configuration, but lookup methods document background task spawning and do not reproduce every libc/NSS hostname source. | Active, MSRV 1.88, permissive, and credible for applications that require DNS. | Large DNS protocol/cache/platform graph and a second lifecycle to supervise for a proxy whose known callers use numeric IPs/custom dialers. | Rejected for this capability: does not improve the required no-detached-work guarantee enough to justify semantic/build cost. |
 
-## Conditional integration after authority and fresh review
+## Approved integration requirements
 
 ### Exact versions and features
 
-If and only if the blockers are resolved and a fresh reviewer approves the
-corrected record, the integrator would add:
+Package owners may use exactly:
 
 ```toml
 tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
