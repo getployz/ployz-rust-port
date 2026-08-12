@@ -25,3 +25,5 @@ prometheus-created-timestamp-prototext-parity	approved	migration/dependencies/pr
 go-compatible-json-codec	approved	migration/dependencies/go-compatible-json-codec.md	base64[std];serde[derive,std];serde_json[float_roundtrip,raw_value,std]	0.22.1;1.0.229;1.0.151	MIT OR Apache-2.0;MIT OR Apache-2.0;MIT OR Apache-2.0	yes	internal/corrosion,internal/dns	-
 go-compatible-url-and-reference-resolution	approved	migration/dependencies/go-compatible-url-and-reference-resolution.md	oxiri	0.3.1	MIT OR Apache-2.0	yes	internal/dns	-
 in-process-ssh-client	approved	migration/dependencies/in-process-ssh-client.md	russh[ring,rsa];tokio[io-util,macros,net,rt,sync,time]	0.62.6;1.53.1	Apache-2.0;MIT	yes	internal/sshexec,pkg/client/connector	-
+local-time-timestamp-formatting	requested	-	-	-	-	yes	internal/cli/logs	-
+cli-option-definition-and-parsing	requested	-	-	-	-	yes	internal/cli/logs	-
