@@ -1478,6 +1478,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gotmpl"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f8c7ae308224bc99eabb16a4adef18d7b540b13cd618e23b9494eee83aedad5"
+dependencies = [
+ "smol_str",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "grid"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2873,6 +2883,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-internal-machine-caddyconfig"
+version = "0.0.0"
+dependencies = [
+ "async-compression",
+ "futures-util",
+ "gotmpl",
+ "ployz-internal-fs",
+ "ployz-internal-machine-api-pb",
+ "ployz-internal-machine-store",
+ "ployz-pkg-api",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "tonic",
+]
+
+[[package]]
 name = "ployz-internal-machine-cluster"
 version = "0.0.0"
 dependencies = [
@@ -3962,6 +3992,12 @@ name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+
+[[package]]
+name = "smol_str"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaa7368fcf4852a4c2dd92df0cace6a71f2091ca0a23391ce7f3a31833f1523"
 
 [[package]]
 name = "smoltcp"

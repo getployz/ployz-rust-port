@@ -17,6 +17,7 @@ members = [
     "crates/ployz-internal-log",
     "crates/ployz-internal-machine-api-pb",
     "crates/ployz-internal-machine-api-proxy",
+    "crates/ployz-internal-machine-caddyconfig",
     "crates/ployz-internal-machine-cluster",
     "crates/ployz-internal-machine-constants",
     "crates/ployz-internal-machine-corroservice",
