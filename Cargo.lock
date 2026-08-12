@@ -1575,6 +1575,7 @@ name = "ployz-internal-metrics"
 version = "0.0.0"
 dependencies = [
  "prometheus",
+ "protobuf",
 ]
 
 [[package]]
