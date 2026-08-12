@@ -1,0 +1,17 @@
+[package]
+name = "ployz-internal-machine-store"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+ployz-internal-corrosion = { path = "../ployz-internal-corrosion" }
+ployz-internal-machine-api-pb = { path = "../ployz-internal-machine-api-pb" }
+ployz-pkg-api = { path = "../ployz-pkg-api" }
+serde = { version = "=1.0.229", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "=1.0.151", default-features = false, features = ["float_roundtrip", "raw_value", "std"] }
+tokio = { version = "=1.53.1", default-features = false, features = ["macros", "net", "rt", "sync", "time"] }
+
+[workspace]
