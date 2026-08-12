@@ -1604,6 +1604,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-pkg-api"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "oci-spec",
+ "ployz-internal-machine-api-pb",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "ployz-scripts"
 version = "0.0.0"
 
