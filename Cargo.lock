@@ -2945,6 +2945,19 @@ name = "ployz-internal-machine-osinfo"
 version = "0.0.0"
 
 [[package]]
+name = "ployz-internal-machine-store"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "ployz-internal-corrosion",
+ "ployz-internal-machine-api-pb",
+ "ployz-pkg-api",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "ployz-internal-metrics"
 version = "0.0.0"
 dependencies = [

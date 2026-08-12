@@ -23,6 +23,7 @@ members = [
     "crates/ployz-internal-machine-network",
     "crates/ployz-internal-machine-network-tunnel",
     "crates/ployz-internal-machine-osinfo",
+    "crates/ployz-internal-machine-store",
     "crates/ployz-internal-metrics",
     "crates/ployz-internal-proxy",
     "crates/ployz-internal-sshexec",
