@@ -29,7 +29,7 @@ local-time-timestamp-formatting	approved	migration/dependencies/cli-logs-time-an
 cli-option-definition-and-parsing	approved	migration/dependencies/cli-logs-time-and-options.md	clap[derive,std,help,usage,error-context]	4.6.6	MIT OR Apache-2.0	no	internal/cli/logs	-
 ansi-aware-unicode-grapheme-display-width-truncation	blocked	migration/dependencies/ansi-grapheme-terminal-truncation.md	-	-	-	yes	pkg/client/deploy/operation	-
 caddy-admin-http-over-unix-socket	researching	migration/dependencies/caddy-admin-http-over-unix-socket.md	-	-	-	yes	internal/machine/caddyconfig	native:019ff60b-98f0-75c3-b084-2b4821c6cd73
-go-text-template-compatible-caddy-rendering	researching	migration/dependencies/go-text-template-compatible-caddy-rendering.md	-	-	-	yes	internal/machine/caddyconfig	native:019ff60b-a52c-7e00-84e9-b165b4835d54
+go-text-template-compatible-caddy-rendering	blocked	migration/dependencies/go-text-template-compatible-caddy-rendering.md	-	-	-	yes	internal/machine/caddyconfig	-
 corrosion-toml-config-codec	approved	migration/dependencies/corrosion-toml-config-codec.md	toml[display,parse,serde,std];serde[derive,std]	1.1.4+spec-1.1.0;1.0.229	MIT OR Apache-2.0	no	internal/machine/corroservice	-
 systemd-start-timeout-notification	approved	migration/dependencies/systemd-start-timeout-notification.md	libsystemd	0.7.2	MIT OR Apache-2.0	yes	internal/machine/corroservice	-
 best-effort-systemctl-service-control	approved	migration/AUTHORITIES.tsv	std::process::Command	rust-1.96	MIT OR Apache-2.0	no	internal/machine/corromigrate	-
