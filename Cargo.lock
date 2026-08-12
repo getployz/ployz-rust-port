@@ -1532,6 +1532,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-internal-machine-api-proxy"
+version = "0.0.0"
+dependencies = [
+ "bytes",
+ "fastrand",
+ "http",
+ "hyper-util",
+ "ployz-internal-machine-api-pb",
+ "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tower",
+]
+
+[[package]]
 name = "ployz-internal-machine-constants"
 version = "0.0.0"
 
