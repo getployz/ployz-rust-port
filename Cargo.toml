@@ -15,6 +15,7 @@ members = [
     "crates/ployz-internal-machine-api-pb",
     "crates/ployz-internal-machine-api-proxy",
     "crates/ployz-internal-machine-constants",
+    "crates/ployz-internal-machine-metrics",
     "crates/ployz-internal-machine-network",
     "crates/ployz-internal-machine-network-tunnel",
     "crates/ployz-internal-machine-osinfo",

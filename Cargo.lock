@@ -1959,6 +1959,21 @@ name = "ployz-internal-machine-constants"
 version = "0.0.0"
 
 [[package]]
+name = "ployz-internal-machine-metrics"
+version = "0.0.0"
+dependencies = [
+ "flate2",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "ployz-internal-metrics",
+ "prometheus",
+ "protobuf",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "ployz-internal-machine-network"
 version = "0.0.0"
 dependencies = [
