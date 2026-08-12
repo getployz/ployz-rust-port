@@ -1,0 +1,21 @@
+[package]
+name = "ployz-internal-dns"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+bytes = "=1.12.1"
+flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
+http = "=1.5.0"
+http-body-util = "=0.1.4"
+hyper = { version = "=1.11.0", features = ["client", "http1", "http2"] }
+hyper-rustls = { version = "=0.27.9", default-features = false, features = ["http1", "http2", "ring", "rustls-platform-verifier", "tls12"] }
+hyper-util = { version = "=0.1.20", features = ["client", "client-legacy", "client-pool", "client-proxy", "http1", "http2", "tokio"] }
+oxiri = { version = "=0.3.1", default-features = false }
+serde = { version = "=1.0.229", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "=1.0.151", default-features = false, features = ["float_roundtrip", "raw_value", "std"] }
+tokio = { version = "=1.53.1", features = ["rt-multi-thread", "net", "sync", "time"] }
+tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
