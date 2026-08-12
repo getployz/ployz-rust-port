@@ -13,6 +13,7 @@ use crate::{
 };
 
 const ERROR_BODY_LIMIT: usize = 1024 * 1024;
+const PORT_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 #[derive(Clone, Debug, Default)]
 pub struct PullOptions {
@@ -289,16 +290,23 @@ impl Client {
         port: &str,
         cancellation: &Cancellation,
     ) -> Result<Vec<bollard::models::PortBinding>, DockerError> {
-        self.wait_port_published_with_timeout(container, port, cancellation, Duration::from_secs(5))
-            .await
+        self.wait_port_published_with_timing(
+            container,
+            port,
+            cancellation,
+            Duration::from_secs(5),
+            PORT_POLL_INTERVAL,
+        )
+        .await
     }
 
-    async fn wait_port_published_with_timeout(
+    async fn wait_port_published_with_timing(
         &self,
         container: &str,
         port: &str,
         cancellation: &Cancellation,
         timeout: Duration,
+        poll_interval: Duration,
     ) -> Result<Vec<bollard::models::PortBinding>, DockerError> {
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
@@ -326,7 +334,7 @@ impl Client {
                 biased;
                 _ = cancellation.cancelled() => return Err(DockerError::Cancelled),
                 _ = tokio::time::sleep_until(deadline) => return Err(DockerError::Timeout),
-                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+                _ = tokio::time::sleep(poll_interval) => {}
             }
         }
     }
@@ -1592,11 +1600,12 @@ mod tests {
         });
         let client = test_client(url).await;
         let inspect_deadline = client
-            .wait_port_published_with_timeout(
+            .wait_port_published_with_timing(
                 "id",
                 "80/tcp",
                 &Cancellation::new(),
                 Duration::from_millis(30),
+                PORT_POLL_INTERVAL,
             )
             .await
             .unwrap_err();
@@ -1608,27 +1617,65 @@ mod tests {
 
         let (listener, url) = listen_once().await;
         let server = tokio::spawn(async move {
-            while let Ok(Ok((mut socket, _))) =
-                timeout(Duration::from_millis(100), listener.accept()).await
-            {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_headers(&mut socket).await;
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}")
+                .await
+                .unwrap();
+        });
+        let client = test_client(url).await;
+        let delay_timeout = client
+            .wait_port_published_with_timing(
+                "id",
+                "80/tcp",
+                &Cancellation::new(),
+                Duration::from_millis(5),
+                PORT_POLL_INTERVAL,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(delay_timeout.to_string(), "timeout");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn wait_port_reinspects_during_the_final_partial_poll_interval() {
+        let (listener, url) = listen_once().await;
+        let server = tokio::spawn(async move {
+            for inspection in 0..4 {
+                let (mut socket, _) = listener.accept().await.unwrap();
                 read_headers(&mut socket).await;
+                let body = if inspection == 3 {
+                    r#"{"NetworkSettings":{"Ports":{"80/tcp":[{"HostIp":"127.0.0.1","HostPort":"8080"}]}}}"#
+                } else {
+                    "{}"
+                };
                 socket
-                    .write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}")
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                            body.len()
+                        )
+                        .as_bytes(),
+                    )
                     .await
                     .unwrap();
             }
         });
         let client = test_client(url).await;
-        let delay_timeout = client
-            .wait_port_published_with_timeout(
+        let bindings = client
+            .wait_port_published_with_timing(
                 "id",
                 "80/tcp",
                 &Cancellation::new(),
-                Duration::from_millis(35),
+                Duration::from_millis(350),
+                Duration::from_millis(100),
             )
             .await
-            .unwrap_err();
-        assert_eq!(delay_timeout.to_string(), "timeout");
+            .unwrap();
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(bindings[0].host_port.as_deref(), Some("8080"));
         server.await.unwrap();
     }
 
