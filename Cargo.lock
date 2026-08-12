@@ -2790,6 +2790,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-internal-journal"
+version = "0.0.0"
+dependencies = [
+ "ployz-pkg-api",
+]
+
+[[package]]
 name = "ployz-internal-log"
 version = "0.0.0"
 dependencies = [
