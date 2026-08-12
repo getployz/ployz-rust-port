@@ -1,0 +1,10 @@
+[package]
+name = "ployz-pkg-client-deploy-scheduler"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+ployz-internal-machine-api-pb = { path = "../ployz-internal-machine-api-pb" }
+ployz-pkg-api = { path = "../ployz-pkg-api" }
