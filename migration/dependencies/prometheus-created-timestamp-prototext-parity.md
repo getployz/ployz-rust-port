@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required` |
+| Status | `approved-option-a` |
 | Capability | Prometheus counter creation timestamps and legacy protobuf text/compact-text parity |
-| Selected dependency | None passes every hard gate. Closest safe wire/canonical-text seam: retain `prometheus = { version = "=0.14.0", default-features = false, features = ["protobuf"] }` and declare its resolved runtime directly as `protobuf = { version = "=3.7.2", default-features = false }`; this still requires an `internal/metrics` change, a narrow local formatter, and an explicit text-whitespace deviation. |
+| Selected dependency | `prometheus = { version = "=0.14.0", default-features = false, features = ["protobuf"] }` and `protobuf = { version = "=3.7.2", default-features = false }`, with the approved Option A metrics wrapper and canonical formatter. |
 | License | `Apache-2.0 AND MIT` for the closest seam (`prometheus` and `protobuf`, respectively) |
 | Research date | `2026-08-11` UTC |
 | Request | [`migration/dependencies/requests/prometheus-created-timestamp-prototext-parity.md`](requests/prometheus-created-timestamp-prototext-parity.md) |
@@ -51,8 +51,9 @@ complete endpoint byte equality. Strict full-endpoint parity therefore needs a
 separate runtime/process-metrics decision; this record does not invent those
 metrics or infer approval to omit them.
 
-Therefore no dependency is approved and no deviation is inferred. A human must
-choose one of the precise resolutions under [Required human decision](#required-human-decision).
+On 2026-08-12 the user explicitly approved Option A and its recorded
+limitations. The exact authority is durable in `migration/AUTHORITIES.tsv`;
+the alternatives below remain research evidence rather than pending choices.
 
 ## Required behavior and source evidence
 
@@ -183,7 +184,7 @@ at research time. Parsers, framework exporters, OpenTelemetry bridges, and
 generic metrics facades do not own both the missing creation metadata and a
 bounded canonical legacy encoder, so they are not separate credible candidates.
 
-## Required human decision
+## Recorded human decision
 
 ### Option A — exact timestamps/wire plus canonical legacy text (recommended)
 
