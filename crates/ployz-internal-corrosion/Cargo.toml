@@ -19,7 +19,3 @@ serde = { version = "=1.0.229", default-features = false, features = ["derive", 
 serde_json = { version = "=1.0.151", default-features = false, features = ["float_roundtrip", "raw_value", "std"] }
 tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
 tokio-util = { version = "=0.7.19", default-features = false, features = ["io"] }
-
-# This migration crate is integrated into the root workspace by the integrator.
-# Until then it is independently testable without editing the shared manifest.
-[workspace]
