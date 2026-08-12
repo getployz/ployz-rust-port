@@ -5,6 +5,7 @@ members = [
     "crates/ployz-internal-version",
     "crates/ployz-internal-grpcversion",
     "crates/ployz-internal-cli-config",
+    "crates/ployz-internal-cli-progress",
     "crates/ployz-internal-cli-tui",
     "crates/ployz-internal-docker",
     "crates/ployz-internal-fs",

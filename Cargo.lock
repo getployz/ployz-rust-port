@@ -1834,6 +1834,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-internal-cli-progress"
+version = "0.0.0"
+dependencies = [
+ "ployz-internal-cli-tui",
+]
+
+[[package]]
 name = "ployz-internal-cli-tui"
 version = "0.0.0"
 dependencies = [
