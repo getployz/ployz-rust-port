@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/ployz-internal-cli-logs",
     "crates/ployz-internal-secret",
     "crates/ployz-internal-version",
     "crates/ployz-internal-grpcversion",
