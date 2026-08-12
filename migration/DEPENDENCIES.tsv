@@ -35,4 +35,4 @@ systemd-start-timeout-notification	approved	migration/dependencies/systemd-start
 best-effort-systemctl-service-control	approved	migration/AUTHORITIES.tsv	std::process::Command	rust-1.96	MIT OR Apache-2.0	no	internal/machine/corromigrate	-
 embedded-read-only-sqlite-access	blocked	migration/dependencies/embedded-read-only-sqlite-access.md	-	-	-	yes	internal/machine/corromigrate	-
 embedded-dns-server-client-runtime	researching	migration/dependencies/embedded-dns-server-client-runtime.md	-	-	-	yes	internal/machine/dns	native:019ff611-4d73-75f2-82d8-b936b5478bbe
-linux-iptables-firewalld-rule-management	requested	-	-	-	-	yes	internal/machine/firewall,internal/machine/docker	-
+linux-iptables-firewalld-rule-management	researching	migration/dependencies/linux-iptables-firewalld-rule-management.md	-	-	-	yes	internal/machine/firewall,internal/machine/docker	native:019ff635-7b46-76a0-a212-bd16b0c1fe4c
