@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **`blocked`** — no candidate can both read every valid on-disk SQLite/WAL state and guarantee no auxiliary-file creation or mutation |
+| Status | **`approved`** by explicit user authority on 2026-08-12 for ordinary logical-read-only behavior and the documented storage limitations |
 | Capability | Embedded read-only inspection of an existing Corrosion `store.db` |
 | Strongest conditional candidate | `rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled", "limits"] }` |
 | Embedded engine | `libsqlite3-sys = 0.38.2`; SQLite `3.53.2` |
@@ -14,7 +14,8 @@
 
 ## Decision
 
-Return a precise blocked verdict. `rusqlite` 0.40.2 is the strongest popular,
+Approve `rusqlite` 0.40.2 with `bundled,limits` under the user's explicit
+2026-08-12 dependency-unblock authority. It is the strongest popular,
 maintained, idiomatic Rust dependency for the queries and typed row handling,
 but SQLite itself cannot satisfy this assignment's simultaneous requirements
 for an **arbitrary** existing database:
@@ -60,17 +61,14 @@ processes, hostile sizes, unsafe callbacks, and all four target combinations.
 No maintained production Rust crate meeting those gates was found; building
 one is a storage subsystem, not a narrow dependency seam.
 
-Routine approval is therefore **not** delegated for this record. A future
-decision needs one explicit contract change:
+The user selected this contract option on 2026-08-12:
 
 - permit SQLite's logical-read-only semantics and possible `-wal`/`-shm`
-  creation/update; or
-- require a quiescent, fully checkpointed database and permit `immutable=1`,
-  accepting that pending WAL data is invisible; or
-- authorize a snapshot/copy/checkpoint step and its I/O/lifecycle semantics.
+  creation/update.
 
-Do not add this capability to an approval registry until one option is chosen
-and re-reviewed.
+This approval permits SQLite logical-read-only semantics and possible WAL/SHM
+creation or mutation. The implementation must retain the other bounded safety
+and lifecycle constraints in this record.
 
 ## Oracle, tests, callers, and explicit contract
 
@@ -309,12 +307,10 @@ under the downloaded Go 1.25.12 toolchain.
 
 ## Accepted limitations
 
-None are approved because the decision is blocked. If ordinary SQLite
-logical-read-only semantics are authorized later, the accepted limitations
-must explicitly include WAL/SHM creation and mutation, cooperative cancellation,
-strict TEXT behavior differing from Go coercion, bounded hostile-input limits,
-native C residual risk, bundled build cost, and unspecified row ordering across
-engine versions.
+Approved limitations are WAL/SHM creation and mutation, cooperative
+cancellation, strict TEXT behavior differing from Go coercion, bounded
+hostile-input limits, native C residual risk, bundled build cost, and
+unspecified row ordering across engine versions.
 
 ## Review
 

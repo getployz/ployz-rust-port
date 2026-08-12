@@ -49,22 +49,22 @@ all three existing terminal rows select exact iocraft 0.8.4 with only
 `unstable-output-streams`. This does not approve any future terminal or other
 capability.
 
-On 2026-08-12 the user delegated routine dependency approval to the supervisor
-and heartbeat. A researched dependency may be approved without another user
-round-trip only after its required adversarial review shows that the exact
-crate/version/features satisfy observable parity, maintenance, platform,
-permissive-license, and security gates. Prefer popular, maintained, idiomatic
-Rust dependencies and adapt the package to their natural design; compatibility
-seams cover externally or product-observable behavior, stay narrow and
-package-owned, and do not preserve unobservable Go machinery.
+On 2026-08-12 the user delegated dependency selection and approval to the
+supervisor with unblocking as the top priority. Prefer popular, maintained,
+idiomatic Rust dependencies and adapt packages to their natural design. The
+supervisor may approve documented parity-adjacent limitations and the smallest
+package-owned compatibility seams needed for observable behavior after bounded
+research and required adversarial review; it must not send routine dependency
+choices back to the user.
 
 This delegation is never an undocumented blanket approval. Before scheduling
 an affected package, record the exact capability, crates, versions, features,
 accepted limitations, date, and approval disposition in
 `migration/AUTHORITIES.tsv`, update `migration/DEPENDENCIES.tsv`, and retain the
-reviewed decision record. Ask the user only for a material product behavior
-change, serious unresolved security exposure, licensing problem, paid or
-external service, or other authority beyond routine implementation.
+reviewed decision record. Ask the user only for licensing incompatibility,
+serious unresolved security risk, a paid or external service, a destructive
+external action, or a major product-scope change unrelated to dependency
+adoption.
 
 ## Scheduler pools
 

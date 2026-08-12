@@ -2,24 +2,25 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` -- no inspected Rust dependency preserves both the public Go template language and the observable Go 1.26.1 parse/execution error contract through a narrow public-API seam |
+| Status | `approved` by explicit user authority on 2026-08-12, with the reviewed deviations below |
 | Capability | Render user-authored Caddy configuration with the Go `text/template` language and the package's `upstreams` function |
-| Selected dependency and exact version | None approved. Strongest provisional candidate: `gotmpl = { version = "=0.6.1", default-features = false }` |
-| Required features and configuration | None approved. The provisional line above is exact and enables no crate feature; `std`, `serde`, `glob`, `html`, and `go-crosscheck` are intentionally absent from the production configuration. |
-| License | No selected graph. Provisional `gotmpl 0.6.1` is MIT; all normal transitives in the probe use MIT, Apache-2.0, or Unicode-3.0 terms. |
+| Selected dependency and exact version | `gotmpl = { version = "=0.6.1", default-features = false }` |
+| Required features and configuration | No crate features; `std`, `serde`, `glob`, `html`, and `go-crosscheck` are intentionally absent from the production configuration. |
+| License | `gotmpl 0.6.1` is MIT; all normal transitives in the probe use MIT, Apache-2.0, or Unicode-3.0 terms. |
 | Research date | `2026-08-12` UTC |
 | Exact research base | `886327c72d1db25ca56a6c76c65a2cdc6c4ee2b9` |
 | Request | Existing `migration/DEPENDENCIES.tsv` registry row; no separate request record exists |
 | Affected package | `internal/machine/caddyconfig` (`crates/ployz-internal-machine-caddyconfig`) |
-| Accepted limitations | None. The current behavior hard gate does not waive user-authored syntax, valid output, or observable parse/execution diagnostics. |
+| Accepted limitations | The documented diagnostic wording/location/context and parse-vs-execution phase differences, typed-map missing-index output edge, rare-language/reflection/formatting/resource-limit differences, and low adoption are accepted to unblock the port. |
 
 ## Decision
 
-Do not approve a Rust dependency for this capability under the current hard
-gates. `gotmpl 0.6.1` is the strongest provisional candidate because it is an
+Approve `gotmpl 0.6.1` under the user's explicit 2026-08-12 dependency-unblock
+authority. It is the strongest reviewed candidate because it is an
 actively maintained pure-Rust port of Go `text/template`, supplies the
 exercised syntax, exposes custom functions, and matches most principal
-valid-output probes. It is nevertheless not an approved dependency.
+valid-output probes. The package must use the narrow package-private seam
+described below and must not build a second generic Go template runtime.
 
 The blocker is not cosmetic formatting around an otherwise equivalent error.
 The frozen package places Go parse and execution errors into the generated
@@ -524,10 +525,10 @@ Popular Jinja/Handlebars/Liquid-family engines are not stronger candidates for
 this capability: popularity cannot compensate for silently changing a
 documented user-authored language.
 
-## Provisional integration seam -- not approved
+## Approved integration seam
 
-If a future authority explicitly accepts the documented deviations, the
-narrowest candidate-shaped implementation is:
+The explicit 2026-08-12 authority selects this narrow candidate-shaped
+implementation:
 
 ```toml
 gotmpl = { version = "=0.6.1", default-features = false }
@@ -557,13 +558,13 @@ Use the dependency's natural model:
    engine materially simplifies exact output; it is not part of the public
    authored-language seam.
 
-This provisional seam is intentionally not permission to consume the crate.
-It preserves most principal exercised valid output but not the current full
-contract.
+This seam is permission to consume only the exact crate/configuration above.
+It preserves most principal exercised valid output but has the accepted
+deviations below.
 
-## Unaccepted provisional limitations
+## Accepted limitations
 
-No item in this section is accepted by the current decision:
+The explicit 2026-08-12 authority accepts these reviewed limitations:
 
 - all parse-message/location differences demonstrated by the probe;
 - undefined functions/variables moving from parse to execution;
@@ -581,9 +582,8 @@ No item in this section is accepted by the current decision:
   iterator differences; and
 - the maintenance/adoption risk of a new crate with no registered dependents.
 
-A material product decision may accept some or all of those limitations, but
-the delegated routine approval policy cannot silently do so while the task
-requires observable errors and the documented Go language.
+The package must characterize the reachable differences and keep the seam
+private; it must not expand into a second generic template runtime.
 
 ## Verification commands and evidence
 
@@ -771,9 +771,9 @@ not be a responsible compatibility test. The build script itself establishes
 the Go/cgo/archive/bindgen/libclang cross-target burden, so it was rejected
 without treating a host-only build as platform proof.
 
-## Required unblock condition
+## Resolved unblock condition
 
-The dependency gate can reopen only if one of these occurs:
+The research-time dependency gate required one of these conditions:
 
 1. a maintained Rust crate exposes Go-compatible parse and execution
    diagnostics, including phase and source/action context, and passes a fresh
@@ -782,8 +782,8 @@ The dependency gate can reopen only if one of these occurs:
    and the other enumerated deviations, plus the maintenance/adoption risk of
    the provisional crate.
 
-Under option 2, the record must be revised to list the exact accepted
-limitations. A routine approval may not infer them from this blocked record.
+The user selected option 2 on 2026-08-12. The accepted limitations and exact
+dependency are recorded above and in `migration/AUTHORITIES.tsv`.
 
 ## Review
 

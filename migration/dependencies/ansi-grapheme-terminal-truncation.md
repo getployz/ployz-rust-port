@@ -2,19 +2,22 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `blocked` -- no inspected dependency satisfies the hard behavior and architecture gates |
-| Selected dependency and exact version | None |
-| Required features and configuration | None approved |
-| License | Not applicable; no dependency is selected |
+| Status | `approved` by explicit user architecture exception on 2026-08-12 |
+| Selected dependency and exact version | `unicode-segmentation = { version = "=1.13.3", default-features = false }` plus a minimal package-private oracle-derived compatibility seam |
+| Required features and configuration | No crate features; byte-oriented ANSI boundary scanner and Go-compatible display-width policy/tables remain private to the package |
+| License | `unicode-segmentation`: MIT OR Apache-2.0; oracle-derived tables/code require preserved license notice and provenance |
 | Research date | 2026-08-12 UTC |
 | Request | Existing registry row; no separate request record |
 | Affected package | `pkg/client/deploy/operation` |
 
 ## Decision
 
-Do not approve a replacement dependency under the durable prospective
-routine-dependency authority. In particular, do not approve the initially
-promising `vtparse 0.7.0`: adversarial source review found observable string
+Approve the smallest exact package-owned compatibility seam under the user's
+explicit 2026-08-12 architecture exception. Use `unicode-segmentation 1.13.3`
+for grapheme segmentation and a minimal byte-oriented scanner plus
+oracle-compatible width policy/tables. Do not build a generic terminal emulator.
+
+Do not use the initially promising `vtparse 0.7.0`: adversarial source review found observable string
 payload, malformed-input, and panic-safety failures that its public API cannot
 repair without a package-local ANSI state machine.
 
@@ -63,14 +66,14 @@ Primary oracle evidence:
 These are byte-output and cell-width requirements. Semantic decoding of CSI,
 OSC, or DCS commands is unnecessary, but exact state boundaries are not.
 
-## Hard-gate results
+## Research hard-gate results before the architecture exception
 
 | Gate | Primary evidence and result |
 | --- | --- |
 | Behavior | **Fail.** No inspected crate matches the oracle's combination of ESC/C1 introducers, OSC/DCS high-byte payload rules, SOS/PM/APC transitions, BEL/ST termination, and malformed-state UTF-8 behavior. Concrete failures are detailed below. |
 | Lossless narrow seam | **Fail.** Candidates that expose original ranges omit required controls; candidates with broader state machines expose only semantic callbacks or insufficient state to correct their transition differences. Repairing them requires recognizing string state and terminators locally, which is the forbidden second ANSI parser. |
 | Graphemes and width | **Fail as a combined capability.** [`unicode-segmentation 1.13.3`](https://github.com/unicode-rs/unicode-segmentation/tree/66a032fd8d667bc47ac5b640b151dff3f5356d07) provides UAX #29 extended grapheme iteration and declares Rust 1.85, but the package must segment the oracle's original suffix, not a control-stripped concatenation. [`unicode-width 0.2.2`](https://github.com/unicode-rs/unicode-width/tree/v0.2.2) declares Rust 1.66 but does not match the oracle's cluster-width policy: `U+0600` followed by `A` is one grapheme measured as 0 by [`displaywidth 0.11.0`](https://github.com/clipperhouse/displaywidth/blob/v0.11.0/width.go) from its first code point, but as 2 by `UnicodeWidthStr::width`; `⌛` plus VS15 is 2 versus 1. Its `cjk` feature can expose `width_cjk`, but selecting a method at each call still must reproduce the oracle's process-wide [`RUNEWIDTH_EASTASIAN`](https://github.com/charmbracelet/x/blob/ansi/v0.11.7/ansi/method.go) switch. Cell width is an additional unresolved dependency blocker. |
-| License and security | **No selected graph.** The rejected established focused parser graphs use acceptable MIT or MIT/Apache-2.0 licensing. A RustSec probe at database commit `69f93e1d081d8b6fbee010e48f0b5e0d13661415` (1,216 loaded advisories, 2026-08-12) found no advisory in the provisional `vtparse 0.7.0`, `utf8parse 0.2.2`, `unicode-segmentation 1.13.3`, and `unicode-width 0.2.2` graph. Advisory cleanliness does not cure the behavior failures. The `emux-vt 0.2.0` artifact declares MIT but does not package a license file, an additional unresolved license-evidence concern. |
+| License and security | The rejected established focused parser graphs use acceptable MIT or MIT/Apache-2.0 licensing. A RustSec probe at database commit `69f93e1d081d8b6fbee010e48f0b5e0d13661415` (1,216 loaded advisories, 2026-08-12) found no advisory in the provisional `vtparse 0.7.0`, `utf8parse 0.2.2`, `unicode-segmentation 1.13.3`, and `unicode-width 0.2.2` graph. Advisory cleanliness does not cure the behavior failures. The selected external crate is only `unicode-segmentation 1.13.3`; the local oracle-derived seam requires preserved license notice and provenance. |
 | Platforms and build | **Pass only for the rejected provisional graph.** Its exact published manifests set `build = false`, `cargo tree -e normal` contains only the four external crates listed below, source inspection found no FFI, and it compiled on Rust 1.96 for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `x86_64-pc-windows-gnu`. `unicode-segmentation` denies unsafe and `unicode-width` forbids it; rejected `vtparse` and `utf8parse` contain internal table/validated-code-point unsafe. No package unsafe or native/system library was required by the probe. No passing behavior/width graph exists to approve. |
 | Maintenance and adoption | **Fail for the closest new alternative.** The established candidates fail behavior. The 2026-08-12 [`emux-vt` crates.io snapshot](https://crates.io/api/v1/crates/emux-vt) and [repository snapshot](https://api.github.com/repos/IISweetHeartII/emux) show two March 2026 releases, about 374 total downloads, and eight stars; it also fails behavior. That is not durable prospective routine-dependency evidence. |
 
@@ -86,15 +89,14 @@ OSC, or DCS commands is unnecessary, but exact state boundaries are not.
 | [`termwiz 0.23.3`](https://crates.io/api/v1/crates/termwiz) | Established WezTerm terminal library. Its exact [`Cargo.toml`](https://github.com/wezterm/wezterm/blob/a87358516004a652ad840bc1661bdf65ffc89b43/termwiz/Cargo.toml) demonstrates the broad terminal/UI graph. | Its exact [`escape/parser/mod.rs`](https://github.com/wezterm/wezterm/blob/a87358516004a652ad840bc1661bdf65ffc89b43/termwiz/src/escape/parser/mod.rs) wraps `vtparse`, inheriting its low-level transition mismatch, and produces semantic actions rather than all exact source ranges. **Fails behavior and is over-selection.** |
 | [`console 0.16.4`](https://crates.io/api/v1/crates/console/0.16.4) | Popular console utility already authorized for the blocked package. | The exact [`AnsiCodeIterator` source](https://github.com/console-rs/console/blob/598eca9fe9e3f9b93d2b49fdccf2d395d809bd94/src/ansi.rs) does not consume OSC strings or DCS bodies. **Fails behavior and losslessness.** |
 
-## Smallest acceptable future integration architecture
+## Approved bounded integration architecture
 
-This is a constraint for renewed research, not an approved implementation:
+This architecture is explicitly approved for the affected package:
 
-1. A dependency must accept original bytes incrementally and expose exact
-   source ranges or sufficient public state/events to classify visible UTF-8,
-   executed C0 controls, and zero-width ESC/C1 control bytes. The package may
-   coordinate offsets but may not recognize ANSI introducers, string states,
-   or terminators itself.
+1. The package-private scanner accepts original bytes incrementally and tracks
+   only the ANSI states needed to classify visible UTF-8, executed C0 controls,
+   and zero-width ESC/C1 control bytes. It preserves exact source ranges and is
+   not exposed as a reusable parser API.
 2. Preserve borrowed slices/ranges of the original input; never decode and
    reconstruct control sequences. Preserve incomplete control tails according
    to the oracle.
@@ -104,7 +106,7 @@ This is a constraint for renewed research, not an approved implementation:
    visibility. At that offset, segment the **original suffix** with
    `unicode-segmentation 1.13.3`. ANSI control bytes therefore break grapheme
    context. Do not concatenate all visible text before segmentation.
-4. A still-unselected width dependency/policy must reproduce
+4. The package-private oracle-compatible width policy/tables must reproduce
    `displaywidth 0.11.0` cluster widths and both values of the process-wide
    `RUNEWIDTH_EASTASIAN` switch. Summing per-scalar widths or using
    `unicode-width 0.2.2` directly is not sufficient.
@@ -113,9 +115,11 @@ This is a constraint for renewed research, not an approved implementation:
    OSC-8/ST, DCS payload and termination, ordinary escapes, and trailing SGR
    reset sequences.
 
-## Accepted limitations
+## Accepted limitations and exception
 
-None of the hard parity requirements is waived. In particular:
+No observable parity requirement is waived. The prior prohibition on a local
+ANSI state/width compatibility layer is waived only for this smallest
+package-private seam. In particular:
 
 - a Rust `String` cannot represent raw single-byte C1 input, so any future
   dependency seam must be byte-oriented internally even if the ordinary API is
@@ -123,8 +127,9 @@ None of the hard parity requirements is waived. In particular:
 - semantic interpretation or bounded parameter arrays may be ignored only if
   exact source-state boundaries continue through arbitrary payload and excess
   parameters;
-- a local parser, state repair layer, or hand-written mapping from C1 to ESC
-  forms is not an accepted workaround;
+- the local scanner must remain byte-oriented, bounded, package-private, and
+  limited to the oracle states needed for truncation; it is not a terminal
+  emulator or reusable ANSI framework;
 - combining characters, emoji ZWJ sequences, and regional indicators separated
   by ANSI must preserve the oracle's boundaries, even when concatenating
   visible text would produce a more natural Unicode cluster;
@@ -246,8 +251,6 @@ Fourth fresh clean re-review result: `clean`; no actionable findings remained.
 
 ## Unlock impact
 
-No package is unblocked. `pkg/client/deploy/operation` remains
-`dependency-blocked`; its downstream packages remain unchanged. The controller
-must not update dependency/package/task registries from this record until a new
-candidate passes every hard gate or an explicit human authority accepts a
-specified parity exception.
+`pkg/client/deploy/operation` is unblocked by the explicit 2026-08-12
+architecture exception. Downstream packages remain governed by the normal
+internal dependency DAG.
