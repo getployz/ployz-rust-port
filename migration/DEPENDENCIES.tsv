@@ -27,6 +27,6 @@ go-compatible-url-and-reference-resolution	approved	migration/dependencies/go-co
 in-process-ssh-client	approved	migration/dependencies/in-process-ssh-client.md	russh[ring,rsa];tokio[io-util,macros,net,rt,sync,time]	0.62.6;1.53.1	Apache-2.0;MIT	yes	internal/sshexec,pkg/client/connector	-
 local-time-timestamp-formatting	approved	migration/dependencies/cli-logs-time-and-options.md	jiff[tz-system,tzdb-zoneinfo]	0.2.35	Unlicense OR MIT	no	internal/cli/logs	-
 cli-option-definition-and-parsing	approved	migration/dependencies/cli-logs-time-and-options.md	clap[derive,std,help,usage,error-context]	4.6.6	MIT OR Apache-2.0	no	internal/cli/logs	-
-ansi-aware-unicode-grapheme-display-width-truncation	researching	migration/dependencies/ansi-grapheme-terminal-truncation.md	console[ansi-parsing,std,unicode-width];unicode-segmentation	0.16.4;1.13.3	MIT;MIT OR Apache-2.0	yes	pkg/client/deploy/operation	native:019ff5cd-9087-74f2-93e1-10ff51e0a929
+ansi-aware-unicode-grapheme-display-width-truncation	blocked	migration/dependencies/ansi-grapheme-terminal-truncation.md	-	-	-	yes	pkg/client/deploy/operation	-
 corrosion-toml-config-codec	approved	migration/dependencies/corrosion-toml-config-codec.md	toml[display,parse,serde,std];serde[derive,std]	1.1.4+spec-1.1.0;1.0.229	MIT OR Apache-2.0	no	internal/machine/corroservice	-
 systemd-start-timeout-notification	approved	migration/dependencies/systemd-start-timeout-notification.md	libsystemd	0.7.2	MIT OR Apache-2.0	yes	internal/machine/corroservice	-
