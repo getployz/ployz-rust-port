@@ -1,0 +1,3 @@
+{"id":"layer","status":"Downloading","progress":"2/4","progressDetail":{"current":2,"total":4,"start":1,"hidecounts":true,"units":"B","future":7},"stream":"output","from":"daemon","time":42,"timeNano":42000000001,"aux":{"Digest":"sha256:abc"},"futureTop":true}
+null
+{"errorDetail":{"code":500,"message":"boom","future":true},"error":"boom"}

@@ -1,0 +1,23 @@
+[package]
+name = "ployz-internal-docker"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+backon = { version = "=1.6.0", default-features = false, features = ["std", "tokio-sleep"] }
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+bollard = { version = "=0.21.0", default-features = false, features = ["pipe", "ssl"] }
+docker_credential = "=1.4.0"
+fastrand = { version = "=2.5.0", default-features = false, features = ["std"] }
+futures-util = { version = "=0.3.34", default-features = false, features = ["std"] }
+oci-spec = { version = "=0.10.0", default-features = false, features = ["distribution"] }
+reqwest = { version = "=0.13.4", default-features = false, features = ["query", "rustls-no-provider", "stream"] }
+rustls = { version = "=0.23.43", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
