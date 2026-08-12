@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required` |
+| Status | `approved` by explicit user authority on `2026-08-12` |
 | Capability | Go `net/url`-compatible endpoint parsing and redirect reference resolution for `internal/dns` |
-| Selected dependency | None: the dependency and compatibility architecture require explicit authority |
+| Selected dependency | `oxiri = 0.3.1`, exact, no crate features, plus the smallest package-owned compatibility seam required for observable DNS behavior |
 | Recommended candidate | `oxiri = 0.3.1`, exact, no crate features |
 | Candidate license | `MIT OR Apache-2.0` |
 | Research date | 2026-08-12 UTC |
@@ -12,17 +12,16 @@
 | Exact integration base | `16bc253ab172` |
 
 No unmodified Rust crate passed the complete observable behavior gate. The
-recommended option, if explicitly authorized, is exact `oxiri 0.3.1` plus a
+approved option is exact `oxiri 0.3.1` plus a
 bounded package-owned Go compatibility seam. `oxiri` preserves the important
 RFC spelling and percent-encoded-dot behavior, has a two-crate pure-Rust
 production graph, forbids unsafe code in `oxiri` itself, and passed strict
 audit and target gates.
 Its parser is deliberately stricter than Go in some components, and its
 resolver differs for empty and query/fragment-only references over an
-unnormalized base, so the seam is a material architecture choice. No existing
-row in [`migration/AUTHORITIES.tsv`](../AUTHORITIES.tsv) grants that choice.
-This record therefore does not approve a dependency or release
-`internal/dns` from its dependency gate.
+unnormalized base, so the seam is a material architecture choice. Explicit user
+authority is recorded in [`migration/AUTHORITIES.tsv`](../AUTHORITIES.tsv),
+releasing `internal/dns` from this dependency gate.
 
 ## Oracle boundary
 
@@ -192,11 +191,11 @@ artifacts are outside the repository:
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | Exact concatenation, component-specific Go escaping/errors/normalization, resolution, fragments, credentials, and redirect policy | Every unmodified candidate has a material mismatch. `oxiri` has the narrowest clean-graph mismatch set but its seam is not authorized or package-tested. | `human-decision-required` |
+| Behavior | Exact concatenation, component-specific Go escaping/errors/normalization, resolution, fragments, credentials, and redirect policy | Every unmodified candidate has a material mismatch. `oxiri` has the narrowest clean-graph mismatch set; its narrow package-owned seam is explicitly authorized and remains package-tested acceptance work. | `pass with approved seam` |
 | License/security | Permissive, safe integration, no advisory or maintenance warning | `oxiri 0.3.1` is MIT OR Apache-2.0; resolved `memchr 2.8.3` is Unlicense OR MIT. `cargo audit --deny warnings` loaded 1,211 advisories and exited 0. `oxiri` has `#![deny(unsafe_code)]`; the selected `memchr` graph is pure Rust. | pass for exact graph |
 | Platforms | Linux/macOS, amd64/arm64 | Exact candidate checked under Rust 1.96 for all four requested targets; Linux amd64 probe ran. No native build or OS API. | pass |
 | Maintenance/Rust | Maintained, MSRV <= 1.96 | `oxiri 0.3.1` was released 2026-07-25, repository active in 2026, declared MSRV 1.83. Run/test/Clippy passed on Rust 1.96. | pass |
-| Architecture | Natural Rust IRI/reference types and bounded seam; no unapproved deviation | `Iri`/`IriRef` are natural validated types. Component compatibility, final HTTP URI conversion, and redirect policy remain package-owned. No authority row covers that split. | `human-decision-required` |
+| Architecture | Natural Rust IRI/reference types and bounded seam; no unapproved deviation | `Iri`/`IriRef` are natural validated types. Component compatibility, final HTTP URI conversion, and redirect policy remain package-owned under the explicit authority row. | `pass` |
 
 Overall verdict: **human decision required**. No dependency may be consumed
 from this record as written.
@@ -214,7 +213,7 @@ security are hard gates; popularity ranks candidates only after those gates.
 | `fluent-uri` | 0.4.1; MIT; Rust 1.68 | 59,490,686 / 18,129,250; 58 dependents; active 2026 | Rejected. Safe, maintained RFC types, but rejects Go raw inputs, recognizes encoded dots, refuses a base fragment, and offers no parity advantage. |
 | `uriparse` | 0.6.4; MIT; undeclared MSRV | 30,483,465 / 3,815,008; 70 dependents; last release 2022-03-18 | Rejected for stale maintenance and no behavior advantage. |
 | `iref` | 4.2.0; legacy manifest `MIT/Apache-2.0` with both license files; Rust 1.89 | 6,830,376 / 987,679; 95 dependents; released 2026-07-07 | Rejected by strict maintenance/security gate. It matches encoded-dot behavior but its 21-package third-party graph (22 lock entries including probe root) includes unmaintained `proc-macro-error 1.0.4`, RUSTSEC-2024-0370, through `static-automata-macros 1.0.3` and `str-newtype-derive 3.0.0`; `cargo audit --deny warnings` fails. |
-| `oxiri` | **0.3.1**; MIT OR Apache-2.0; Rust 1.83 | 1,334,205 / 675,682; 52 dependents; released 2026-07-25 | **Recommended pending authority.** It preserves initial spelling and encoded-dot segments, exposes natural IRI/reference types, forbids unsafe code, and resolves through only `memchr`. Its stricter component validation and empty/base-dot reference behavior require the documented seam. |
+| `oxiri` | **0.3.1**; MIT OR Apache-2.0; Rust 1.83 | 1,334,205 / 675,682; 52 dependents; released 2026-07-25 | **Selected and approved.** It preserves initial spelling and encoded-dot segments, exposes natural IRI/reference types, forbids unsafe code, and resolves through only `memchr`. Its stricter component validation and empty/base-dot reference behavior require the documented seam. |
 | `ada-url` | 4.0.0; MIT OR Apache-2.0; undeclared MSRV | 140,375 / 77,352; 5 dependents; active 2026 | Rejected. WHATWG mismatch class, bundled C++/FFI default, and much lower Rust adoption. |
 | `http::Uri` from approved HTTP stack | 1.5.0; MIT OR Apache-2.0 | Existing Hyper-family primitive | Useful only after compatible spelling is fixed. It is strict and has no reference resolver. |
 | Reqwest redirect stack | 0.13.4; MIT OR Apache-2.0 | Popular maintained client | Rejected. It duplicates the selected raw HTTP stack, uses WHATWG URL semantics, and hides policy this package must control. |
@@ -228,7 +227,7 @@ Primary records: [`oxiri 0.3.1`](https://crates.io/crates/oxiri/0.3.1) and
 [`iref 4.2.0`](https://crates.io/crates/iref/4.2.0), and
 [`ada-url 4.0.0`](https://crates.io/crates/ada-url/4.0.0).
 
-## Recommended integration if authorized
+## Approved integration
 
 Exact direct dependency and feature policy:
 
@@ -286,24 +285,13 @@ API.
 - The broader HTTP transport decision is separate; this record neither expands
   nor repairs it.
 
-## Human decision required
+## Authority resolution
 
-The controller needs one explicit choice:
-
-1. **Recommended:** authorize exact `oxiri 0.3.1`, no crate features, locked
-   transitive `memchr 2.8.3`, and the bounded seam above. This authorizes the
-   architecture, not a semantic deviation.
-2. Authorize exact `iri-string 0.7.14`, `default-features = false`,
-   `features = ["std"]`, plus a wider seam that protects encoded-dot segments.
-3. Authorize a dependency-free package-owned parser/resolver over approved
-   `http` types, accepting ownership of substantially more parsing code.
-4. Explicitly accept WHATWG deviations and select `url 2.5.8`; not recommended
-   because that conflicts with the no-silent-normalization gate.
-
-`iref` is not offered as a normal choice because it fails the strict
-maintenance gate; accepting its RustSec warning would require separate,
-explicit security authority. Until authority and registry updates occur,
-status remains `human-decision-required`.
+On 2026-08-12 the user selected exact `oxiri 0.3.1`, no crate features, with
+the smallest package-owned seam needed for observable Uncloud DNS behavior.
+The target is idiomatic Rust; unobservable Go implementation quirks are not a
+compatibility requirement. This does not authorize `iri-string`, a generic
+package-owned URL runtime, WHATWG `url`, or `iref`.
 
 ## Verification commands and results
 

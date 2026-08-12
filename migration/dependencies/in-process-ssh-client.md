@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required` |
+| Status | `approved` by explicit user authority on `2026-08-12` |
 | Selected dependency | `russh = 0.62.6`; existing runtime dependency `tokio = 1.53.1` |
 | License | `Apache-2.0`; `MIT` |
 | Research date | `2026-08-12` UTC |
@@ -10,11 +10,9 @@
 
 `russh` is the strongest popular, idiomatic in-process candidate and the only
 established maintained candidate found that exposes every required protocol
-primitive through public async Rust APIs. It is the conditional technical
-selection, but it is **not approved**: no authority accepts the oracle's
-insecure host-key policy, the RSA feature has an unresolved transitive RustSec
-advisory, and the selected secure algorithms reject the oracle's legacy DSA
-private-key behavior.
+primitive through public async Rust APIs. The user explicitly selected it with
+insecure host-key parity, on-disk RSA support and the residual RSA timing
+advisory accepted, and on-disk DSA rejection accepted as a temporary deviation.
 
 ## Oracle and caller contract
 
@@ -45,42 +43,36 @@ excluded as directed.
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Behavior | Agent and unencrypted file-key authentication; reusable command sessions; stdout/stderr events; remote SIGINT; direct Unix-socket tunnel; explicit cleanup | `russh::client::Handle` opens reusable [session and direct-streamlocal channels](https://docs.rs/russh/0.62.6/russh/client/struct.Handle.html); [`Channel`](https://docs.rs/russh/0.62.6/russh/struct.Channel.html) exposes `exec`, `signal`, `wait`, `close`, and `into_stream`; the exact encoder sends `direct-streamlocal@openssh.com` ([source](https://docs.rs/russh/0.62.6/src/russh/client/session.rs.html#90-99)); [`AgentClient`](https://docs.rs/russh/0.62.6/russh/keys/agent/client/struct.AgentClient.html) and [`load_secret_key`](https://docs.rs/russh/0.62.6/russh/keys/fn.load_secret_key.html) cover authentication. A local OpenSSH integration probe passed Ed25519 and RSA file keys, agent auth, two channel kinds on a reusable handle, real remote SIGINT, and Unix-socket echo. The selected features intentionally omit DSA. | `human-decision-required` for DSA key parity |
-| License and security | Permissive license, maintained cryptography, no secret logging or application private/unsafe access, explicit host verification | The published manifest and repository declare [Apache-2.0](https://github.com/Eugeny/russh/blob/v0.62.6/LICENSE.txt). Default preferences exclude SHA-1 KEX/MAC and CBC; the application need not enable `des`, `dsa`, or compression. `0.62.6` is newer than the `>=0.60.3` fix for the agent-frame allocation vulnerabilities [RUSTSEC-2026-0153](https://rustsec.org/advisories/RUSTSEC-2026-0153.html) and [RUSTSEC-2026-0154](https://rustsec.org/advisories/RUSTSEC-2026-0154.html). However, `rsa` resolves to `rsa 0.10.0-rc.18`, still covered by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071.html), and accepting every server key enables active MITM. | `human-decision-required` |
+| Behavior | Agent and unencrypted file-key authentication; reusable command sessions; stdout/stderr events; remote SIGINT; direct Unix-socket tunnel; explicit cleanup | `russh::client::Handle` opens reusable [session and direct-streamlocal channels](https://docs.rs/russh/0.62.6/russh/client/struct.Handle.html); [`Channel`](https://docs.rs/russh/0.62.6/russh/struct.Channel.html) exposes `exec`, `signal`, `wait`, `close`, and `into_stream`; the exact encoder sends `direct-streamlocal@openssh.com` ([source](https://docs.rs/russh/0.62.6/src/russh/client/session.rs.html#90-99)); [`AgentClient`](https://docs.rs/russh/0.62.6/russh/keys/agent/client/struct.AgentClient.html) and [`load_secret_key`](https://docs.rs/russh/0.62.6/russh/keys/fn.load_secret_key.html) cover authentication. A local OpenSSH integration probe passed Ed25519 and RSA file keys, agent auth, two channel kinds on a reusable handle, real remote SIGINT, and Unix-socket echo. The selected features intentionally omit DSA. | `pass with accepted DSA deviation` |
+| License and security | Permissive license, maintained cryptography, no secret logging or application private/unsafe access, explicit host verification | The published manifest and repository declare [Apache-2.0](https://github.com/Eugeny/russh/blob/v0.62.6/LICENSE.txt). Default preferences exclude SHA-1 KEX/MAC and CBC; the application need not enable `des`, `dsa`, or compression. `0.62.6` is newer than the `>=0.60.3` fix for the agent-frame allocation vulnerabilities [RUSTSEC-2026-0153](https://rustsec.org/advisories/RUSTSEC-2026-0153.html) and [RUSTSEC-2026-0154](https://rustsec.org/advisories/RUSTSEC-2026-0154.html). However, `rsa` resolves to `rsa 0.10.0-rc.18`, still covered by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071.html), and accepting every server key enables active MITM. | `pass with explicitly accepted risks` |
 | Platforms and targets | Linux and macOS, amd64 and arm64 | The Rust-only public integration probe checked on `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`. `ring 0.17.14` contains build targets for Apple x86_64/aarch64 and Linux x86_64/aarch64 ([build source](https://docs.rs/crate/ring/0.17.14/source/build.rs)); `russh` uses Tokio Unix sockets for the agent. Linux-hosted Apple cross-checks reached `ring` but could not run because the VM lacks the macOS SDK/compiler, so native checks remain mandatory. | `pass`, native macOS CI required |
 | Maintenance and Rust version | Maintained and compatible with Rust 1.96 | `russh 0.62.6` declares Rust 1.85, was released 2026-08-11, and includes current security fixes ([release](https://github.com/Eugeny/russh/releases/tag/v0.62.6)). The Rust 1.96 probe builds and passes Clippy. | `pass` |
 | Architectural constraints | Tokio-native, bounded cancellation and cleanup, public APIs, no subprocess, no Go-shaped dependency adapter | `Handle` multiplexes channels; `ChannelMsg::Data` and `ExtendedData` preserve stream identity; `Channel::signal(Sig::INT)` supports cancellation; `ChannelStream` implements Tokio I/O and closes on drop; `Handle::disconnect` provides connection shutdown. A canceled direct-streamlocal open needs connection-level retirement because dropping the pending open future alone can strand a registered channel. All used APIs are public. | `pass`, only with the supervised-open policy and leak test below |
 
-## Required human decisions
+## Authority resolution
 
-No deviation is accepted by this record.
+The user explicitly resolved all three choices on 2026-08-12:
 
 1. **Host-key policy.** Exact oracle parity is a handler whose
    `check_server_key` always returns `Ok(true)`. This defeats SSH server
    authentication and permits an active machine-in-the-middle attack; SSH's
    security architecture describes server authentication as the protection
    against this attack ([RFC 4251 section 9.3.4](https://www.rfc-editor.org/rfc/rfc4251#section-9.3.4)).
-   A human must explicitly choose either insecure oracle parity or authorize a
-   behavior deviation using `russh::keys::known_hosts` or a pinned host key.
+   Preserve insecure oracle parity for this port.
 2. **On-disk RSA private keys.** The oracle's generic private-key parser accepts
    RSA keys. Matching that behavior requires `russh` feature `rsa`, which pulls
    `rsa 0.10.0-rc.18`; `cargo audit --deny warnings` reports
    RUSTSEC-2023-0071 with no fixed version. The advisory describes RSA private
    key recovery through timing leakage. Russh uses the key for SSH signing, not
    RSA decryption/padding; reduced reachability is an inference, not clearance.
-   A human must explicitly accept this residual risk, or authorize the
-   `ring`-only deviation that rejects on-disk RSA keys. RSA keys held by an SSH
-   agent continue to work in the `ring`-only configuration because signing is
-   delegated to the agent.
+   Enable on-disk RSA and explicitly accept the residual
+   RUSTSEC-2023-0071 timing-advisory risk. Preserve agent-held RSA support.
 3. **On-disk DSA private keys.** Go's `ssh.ParsePrivateKey` accepts unencrypted
    DSA keys, while this selection deliberately omits russh's `dsa` feature and
-   the legacy `ssh-dss`/SHA-1 algorithm. Rejecting those keys is a recommended
-   security deviation, but no authority in the request accepts it. A human must
-   authorize that deviation or separately approve and probe `dsa`; even enabling
-   the feature does not by itself prove parity with every legacy PEM encoding.
+   the legacy `ssh-dss`/SHA-1 algorithm. Reject those keys as an explicitly
+   accepted temporary behavior deviation; do not enable the `dsa` feature.
 
-The status remains `human-decision-required` until all three choices are
-recorded.
+The reviewed supervised-open and cancellation policy remains mandatory.
 
 ## Candidate comparison
 
@@ -103,11 +95,9 @@ used only after hard gates.
 | [`openssh 0.11.6`](https://github.com/openssh-rust/openssh/tree/v0.11.6) and other process wrappers | Popular and maintained wrappers around the system `ssh` program. | Hard fail: not an in-process protocol client and explicitly disallowed for the tunneled connector path. |
 | `anvil-ssh 1.1.0`, `rustssh2 9.0.0`, `wezterm-ssh 0.4.0`, obsolete `ssh 0.1.4` | GPL candidate; low-adoption republish of russh; old application-internal crate; obsolete crate, respectively. | Rejected for license, provenance/adoption, maintenance, or unnecessary application-specific surface before preference ranking. |
 
-## Conditional selected integration
+## Approved integration
 
-Use the following exact stack only if a human (1) chooses insecure host-key
-parity, (2) accepts the RSA advisory risk, and (3) authorizes the secure
-deviation that rejects on-disk DSA keys:
+Use the following exact stack:
 
 ```toml
 russh = { version = "=0.62.6", default-features = false, features = ["ring", "rsa"] }
@@ -120,9 +110,9 @@ features `aws-lc-rs`, `flate2`, `des`, `dsa`, or its default features. The
 `ring` backend avoids the larger AWS-LC build surface; no compression matches
 the oracle. If the human rejects local RSA risk, omit `rsa` and record the
 resulting key-format deviation before implementation. If the human instead
-requires DSA parity, this selection remains unresolved pending separate
-`dsa` feature, key-format, and security probing; the displayed stack does not
-cover that branch.
+requires DSA parity, that is a new product requirement needing separate `dsa`
+feature, key-format, and security probing; the approved stack does not cover
+that branch.
 
 Follow the dependency's natural model:
 
@@ -177,10 +167,12 @@ Follow the dependency's natural model:
    is the final fallback. Keep system-SSH CLI execution and shell quoting out of
    this protocol-client seam.
 
-## Known limitations and unaccepted deviations
+## Known and accepted limitations
 
-- Insecure host-key acceptance and the RSA advisory are unresolved, not
-  implicitly approved limitations.
+- Insecure host-key acceptance is preserved for baseline parity and the
+  RUSTSEC-2023-0071 on-disk RSA timing-advisory risk is explicitly accepted.
+- On-disk DSA keys are rejected as an explicitly accepted temporary behavior
+  deviation; agent-held RSA remains supported.
 - The oracle's five-second timeout covers TCP connection establishment only;
   `russh::Config::inactivity_timeout` is not an equivalent replacement.
 - Agent authentication may try several identities inside the same attempt; it
@@ -270,7 +262,8 @@ not assert that path.
 This is a critical networking/cryptography capability. A fresh adversarial
 researcher independently reviewed the full oracle/caller contract and candidate
 set. Its pre-draft result agreed that `russh 0.62.6` is the conditional winner,
-required `human-decision-required` for host-key policy and RSA risk, identified
+required the initial `human-decision-required` status for host-key policy and
+RSA risk before user approval, identified
 the command-channel explicit-close nuance, and required truthful macOS and audit
 reporting. Its formal first pass found five gaps: incorrect TCP-timeout scope,
 unsurfaced DSA key incompatibility, unsafe cancellation of a pending streamlocal

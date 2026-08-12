@@ -2,28 +2,25 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `human-decision-required` |
+| Status | `approved` by explicit user authority on `2026-08-12` |
 | Capability | Go `encoding/json`-compatible JSON and incremental NDJSON codec for the reachable `internal/corrosion` and `internal/dns` contracts |
-| Selected dependency | Recommended pending authority: `serde = 1.0.229`, `serde_json = 1.0.151`, and the already selected `base64 = 0.22.1` for Go `[]byte` values |
+| Selected dependency | `serde = 1.0.229`, `serde_json = 1.0.151`, and `base64 = 0.22.1` for Go `[]byte` values |
 | License | Direct crates: `MIT OR Apache-2.0`; the 12-package resolved dependency graph is permissive (MIT, Apache-2.0, Unlicense, and Unicode-3.0 expressions) |
 | Research date | `2026-08-12` UTC |
 | Request | [`migration/dependencies/requests/go-compatible-json-codec.md`](requests/go-compatible-json-codec.md) |
 
 ## Verdict
 
-Require a human decision before scheduling either waiting package. The strongest
-candidate is the exact Serde stack below, with small protocol-specific visitors
-and formatters. It is the most popular and idiomatic maintained Rust choice by
+Approved for scheduling with the exact Serde stack below and small
+protocol-specific visitors and formatters. It is the most popular and
+idiomatic maintained Rust choice by
 orders of magnitude, passes Rust 1.96 and all four required target checks, and
 provides the natural typed, dynamic-value, raw-value, custom visitor, custom
 formatter, and streaming APIs needed by the frozen packages.
 
-This is a recommendation, not approval. The request was discovered after the
-authority recorded in [`migration/AUTHORITIES.tsv`](../AUTHORITIES.tsv), and the
-request explicitly requires human authority for exact versions and features.
-Authority must also explicitly accept the two residual input differences that
-are not reachable from the observed producers but are observable at a generic
-codec boundary:
+Explicit user authority on 2026-08-12 accepts the two residual input differences
+that are not reachable from the observed producers but are observable at a
+generic codec boundary:
 
 1. Go replaces invalid UTF-8 bytes and unpaired UTF-16 surrogate escapes when
    decoding into typed strings or dynamic values; `serde_json` rejects them at
@@ -40,8 +37,8 @@ are bounded to the concrete DNS messages, Corrosion statements/events/admin
 objects, and their byte/stream entry points. Do not build a generic Go API
 imitation or a workspace-wide `encoding/json` compatibility facade.
 
-If the human requires generic acceptance of malformed Unicode or 129–10,000
-levels of nesting, do not approve this record as written. Reopen research for a
+If a future product requirement needs generic acceptance of malformed Unicode
+or 129–10,000 levels of nesting, reopen research for a
 bounded lossy-Unicode/depth implementation and its denial-of-service analysis.
 
 ## Primary-source evidence
@@ -179,7 +176,7 @@ internals or a guarantee that no vulnerability exists.
 
 | Gate | Requirement | Evidence | Result |
 | --- | --- | --- | --- |
-| Required behavior | Compact Marshal, DNS newline Encode, Go escapes/`omitempty`, exact/folded fields, duplicate-last/merge, unknown fields, nil/null/empty distinctions, typed 64-bit ranges, untyped admin `float64`, raw tuples, Base64 bytes, and incremental events | Serde supplies all necessary typed/custom visitor/formatter/raw/stream hooks. The exact-version probes identify every non-native behavior and the obligations below constrain its adapter. Invalid Unicode and deep generic values remain explicit human limitations rather than silent claims. | `pass pending authority` |
+| Required behavior | Compact Marshal, DNS newline Encode, Go escapes/`omitempty`, exact/folded fields, duplicate-last/merge, unknown fields, nil/null/empty distinctions, typed 64-bit ranges, untyped admin `float64`, raw tuples, Base64 bytes, and incremental events | Serde supplies all necessary typed/custom visitor/formatter/raw/stream hooks. The exact-version probes identify every non-native behavior and the obligations below constrain its adapter. Invalid Unicode rejection and the depth bound are explicitly accepted limitations rather than silent claims. | `pass` |
 | Losslessness and numbers | Full reachable `i64`/`u64`; Go-correct binary64 parsing; raw column values; Go dynamic-number coercion; reject non-finite output | Typed Serde integers cover the target's 64-bit `int`/`uint`; `float_roundtrip` matched Go bits; `RawValue` retains column input; a dedicated admin visitor must coerce numbers to `f64`; non-finite output must be rejected before Serde's null fallback. | `pass pending required adapters` |
 | Field, escaping, and errors | Exact-preferred case-insensitive fixed fields; later duplicates overwrite/merge; Go HTML/JS escaping; caller-visible error boundaries | Custom visitors and `Formatter` are public natural Serde APIs. Exact native error wording differs but no caller compares it; package wrappers must retain syntax/data/EOF/I/O and server-error boundaries. | `pass pending required adapters` |
 | Platforms and targets | Linux/macOS amd64/arm64 on Rust 1.96; no external runtime | The exact selected graph and the broader comparison graph both passed `cargo check` for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, and `aarch64-apple-darwin`. All selected crates are Rust libraries with no C/system dependency. | `pass` |
@@ -193,7 +190,7 @@ internals or a guarantee that no vulnerability exists.
 
 | Candidate | Behavior and architecture | Maintenance, portability, and adoption | Decision |
 | --- | --- | --- | --- |
-| **`serde 1.0.229` + `serde_json 1.0.151`** | Natural strongly typed, dynamic `Value`, raw-value, custom visitor/formatter, and reader-stream APIs. Native `Value` exact duplicates are last-wins. Defaults still need the bounded Go policy below. Safe public API and no input mutation. | Rust 1.56/1.71 MSRVs; current July 2026 releases; Linux/macOS architecture-neutral graph; 1.16B+ downloads and 92,637 reverse dependencies for serde_json. | **Recommended pending authority.** Only candidate with leading adoption, simple architecture, and every required extension point. |
+| **`serde 1.0.229` + `serde_json 1.0.151`** | Natural strongly typed, dynamic `Value`, raw-value, custom visitor/formatter, and reader-stream APIs. Native `Value` exact duplicates are last-wins. Defaults still need the bounded Go policy below. Safe public API and no input mutation. | Rust 1.56/1.71 MSRVs; current July 2026 releases; Linux/macOS architecture-neutral graph; 1.16B+ downloads and 92,637 reverse dependencies for serde_json. | **Selected and approved.** Only candidate with leading adoption, simple architecture, and every required extension point. |
 | `sonic-rs 0.5.8` | Serde-compatible SIMD JSON stack, but derived structs need the same case/duplicate/null adapters. Its dynamic value preserves duplicate members rather than Go's last-value map. The differential probe also emitted unescaped Go-sensitive characters, integer-array bytes, and null for NaN. It adds a sizable unsafe SIMD implementation for small control-plane messages. | Apache-2.0; no declared MSRV, though it compiled on Rust 1.96 and all required targets; active in 2026; 4.94M downloads and 176 reverse dependencies. Its own [compatibility guide](https://github.com/cloudwego/sonic-rs/blob/e339451e37a8f2d3f9b93f155985d31fcbcb115a/docs/serdejson_compatibility.md) documents differences. | Rejected on fidelity, architecture, build cost, and popularity. No measured workload justifies the added SIMD/unsafe surface. |
 | `simd-json 0.17.3` | Serde path still resolves serde_json, parsing mutates an input buffer, native `OwnedValue` preserves duplicates, and no simpler incremental reader model results. The probe found the same escaping/bytes/field/null gaps and its serializer rendered NaN as `2.696539702293474e308`, which is not Go's required error. | MIT OR Apache-2.0; Rust 1.88; active July 2026; supports x86_64/aarch64 but deliberately contains extensive SIMD unsafe code; 18.2M downloads and 227 reverse dependencies. A historical high-severity unsafe advisory is fixed in current versions: [RUSTSEC-2019-0008](https://rustsec.org/advisories/RUSTSEC-2019-0008.html). | Rejected on behavior and architecture. It adds mutation/SIMD complexity and a second Serde-backed stack without a parity benefit. |
 | `miniserde 0.1.46` | Supports a smaller typed JSON model, but its own README calls it a prototype rather than a production-quality artifact, supplies only `rename`, has no fallible serialization or detailed errors, and directs custom use cases to Serde: [exact README](https://github.com/dtolnay/miniserde/blob/0.1.46/README.md). Those limitations prevent the required visitors, formatters, raw tuple policy, and I/O stream behavior. | MIT OR Apache-2.0; Rust 1.71; current release but only 73 reverse dependencies. | Rejected at behavior and architecture gates. |
@@ -207,7 +204,7 @@ parsers fail before popularity is considered.
 
 ## Selected integration
 
-Pending explicit human authority, use these exact direct dependency settings.
+Use these exact direct dependency settings.
 Root workspace manifests and the lockfile remain integrator-owned.
 
 ```toml
@@ -316,7 +313,7 @@ models. It must not expose Go-shaped `Marshal`, `Unmarshal`, `RawMessage`,
   newline. Do not add a newline to Corrosion bodies as a side effect of sharing
   this policy.
 
-## Known limitations and risks requiring authority
+## Accepted limitations and risks
 
 | Risk or deviation | Scope and mitigation |
 | --- | --- |
@@ -423,13 +420,9 @@ Package acceptance must add pinned differential fixtures for:
   runtime worker is blocked; and
 - the accepted invalid-Unicode and 128/129 nesting boundary differences.
 
-## Required human decision
+## Authority resolution
 
-Choose one:
-
-### Option A — authorize the recommended bounded stack
-
-Authorize exactly:
+The user selected the recommended bounded stack on 2026-08-12, exactly:
 
 ```text
 serde 1.0.229: default-features=false + [derive,std]
@@ -437,26 +430,21 @@ serde_json 1.0.151: default-features=false + [float_roundtrip,raw_value,std]
 base64 0.22.1: default-features=false + [std]
 ```
 
-Accept invalid-Unicode rejection and the 128-level nesting limit only for the
+Invalid-Unicode rejection and the 128-level nesting limit are accepted only for the
 documented frozen DNS/Corrosion boundaries, and require every adapter and
-acceptance fixture in this record. This option is recommended.
-
-### Option B — require generic Go malformed/deep-input parity
-
-Leave the capability blocked and commission follow-up research for Go-compatible
-malformed-Unicode replacement and safe 10,000-level decoding. Do not enable
-`unbounded_depth` alone: it removes the guard without resolving stack-exhaustion
-risk.
+acceptance fixture in this record. No generic Go `encoding/json` compatibility
+runtime is authorized.
 
 No option authorizes registry/root-manifest edits by this dependency owner.
-After an explicit decision, the controller owns the registry/authority update
-and the integrator owns workspace dependency resolution.
+The controller owns the registry/authority update and the integrator owns
+workspace dependency resolution.
 
 ## Review
 
 Fresh read-only primary research independently reached the same stack, feature
-set, adapter obligations, affected callers, and `human-decision-required`
-status. A separate fresh adversarial dependency reviewer reported two findings:
+set, adapter obligations, affected callers, and the initial
+`human-decision-required` status before user approval. A separate fresh
+adversarial dependency reviewer reported two findings:
 
 - `R01` (blocking): synchronous `from_reader` guidance did not define a safe
   integration with the async HTTP/2 subscription. Fixed by requiring bounded

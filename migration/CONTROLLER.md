@@ -25,7 +25,7 @@ production internal dependency is integrated and every external capability it
 needs has an approved decision. The worker reads the oracle package, its tests,
 and callers directly; the controller does not create a prose packet.
 
-## Human-approved provisional dependency policy
+## Dependency approval authority
 
 `migration/AUTHORITIES.tsv` records explicit user authority that overrides a
 dependency record's earlier blocked hard-gate verdict for scheduling. As of
@@ -48,6 +48,23 @@ The terminal exceptions were resolved by explicit user authority on 2026-08-11:
 all three existing terminal rows select exact iocraft 0.8.4 with only
 `unstable-output-streams`. This does not approve any future terminal or other
 capability.
+
+On 2026-08-12 the user delegated routine dependency approval to the supervisor
+and heartbeat. A researched dependency may be approved without another user
+round-trip only after its required adversarial review shows that the exact
+crate/version/features satisfy observable parity, maintenance, platform,
+permissive-license, and security gates. Prefer popular, maintained, idiomatic
+Rust dependencies and adapt the package to their natural design; compatibility
+seams cover externally or product-observable behavior, stay narrow and
+package-owned, and do not preserve unobservable Go machinery.
+
+This delegation is never an undocumented blanket approval. Before scheduling
+an affected package, record the exact capability, crates, versions, features,
+accepted limitations, date, and approval disposition in
+`migration/AUTHORITIES.tsv`, update `migration/DEPENDENCIES.tsv`, and retain the
+reviewed decision record. Ask the user only for a material product behavior
+change, serious unresolved security exposure, licensing problem, paid or
+external service, or other authority beyond routine implementation.
 
 ## Scheduler pools
 
