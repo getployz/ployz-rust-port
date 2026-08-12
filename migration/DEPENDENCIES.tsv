@@ -27,3 +27,4 @@ go-compatible-url-and-reference-resolution	approved	migration/dependencies/go-co
 in-process-ssh-client	approved	migration/dependencies/in-process-ssh-client.md	russh[ring,rsa];tokio[io-util,macros,net,rt,sync,time]	0.62.6;1.53.1	Apache-2.0;MIT	yes	internal/sshexec,pkg/client/connector	-
 local-time-timestamp-formatting	approved	migration/dependencies/cli-logs-time-and-options.md	jiff[tz-system,tzdb-zoneinfo]	0.2.35	Unlicense OR MIT	no	internal/cli/logs	-
 cli-option-definition-and-parsing	approved	migration/dependencies/cli-logs-time-and-options.md	clap[derive,std,help,usage,error-context]	4.6.6	MIT OR Apache-2.0	no	internal/cli/logs	-
+ansi-aware-unicode-grapheme-display-width-truncation	requested	-	-	-	-	yes	pkg/client/deploy/operation	-
