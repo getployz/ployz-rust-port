@@ -1,0 +1,19 @@
+[package]
+name = "ployz-internal-sshexec"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[features]
+default = ["files"]
+files = ["ployz-internal-fs/files"]
+native = ["ployz-internal-fs/native"]
+
+[dependencies]
+ployz-internal-fs = { path = "../ployz-internal-fs", default-features = false }
+russh = { version = "=0.62.6", default-features = false, features = ["ring", "rsa"] }
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
