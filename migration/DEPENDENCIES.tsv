@@ -36,4 +36,4 @@ best-effort-systemctl-service-control	approved	migration/AUTHORITIES.tsv	std::pr
 embedded-read-only-sqlite-access	approved	migration/dependencies/embedded-read-only-sqlite-access.md	rusqlite[bundled,limits]	0.40.2	MIT;SQLite-public-domain	yes	internal/machine/corromigrate	-
 embedded-dns-server-client-runtime	approved	migration/dependencies/embedded-dns-server-client-runtime.md	hickory-proto[std];tokio[io-util,macros,net,rt,sync,time];tokio-util;fastrand[std];nix[net]	0.26.1;1.53.1;0.7.19;2.5.0;0.31.3	MIT OR Apache-2.0;MIT;MIT;Apache-2.0 OR MIT;MIT	yes	internal/machine/dns	-
 linux-iptables-firewalld-rule-management	approved	migration/dependencies/linux-iptables-firewalld-rule-management.md	std::process+std::os::fd+std::os::unix::net;zbus[async-io,blocking-api]	rust-1.96;5.19.0	MIT OR Apache-2.0;MIT	yes	internal/machine/firewall,internal/machine/docker	-
-fallible-owned-file-close	research-required	migration/dependencies/fallible-owned-file-close.md	-	-	-	yes	internal/machine/corromigrate	-
+fallible-owned-file-close	researching	migration/dependencies/fallible-owned-file-close.md	-	-	-	yes	internal/machine/corromigrate	019ff6a5-d3ca-7543-8ea2-cac7626a0c2c
