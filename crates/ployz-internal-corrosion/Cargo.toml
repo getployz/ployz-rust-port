@@ -1,0 +1,25 @@
+[package]
+name = "ployz-internal-corrosion"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+
+[dependencies]
+async-compression = { version = "=0.4.43", default-features = false, features = ["gzip", "tokio"] }
+backon = { version = "=1.6.0", default-features = false, features = ["std", "tokio-sleep"] }
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+bytes = "=1.12.1"
+fastrand = { version = "=2.5.0", default-features = false, features = ["std"] }
+futures-util = { version = "=0.3.34", default-features = false, features = ["std"] }
+h2 = "=0.4.15"
+http-body-util = "=0.1.4"
+hyper = { version = "=1.11.0", default-features = false, features = ["client", "http2"] }
+hyper-util = { version = "=0.1.20", default-features = false, features = ["client-legacy", "http2", "tokio"] }
+serde = { version = "=1.0.229", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "=1.0.151", default-features = false, features = ["float_roundtrip", "raw_value", "std"] }
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
+tokio-util = { version = "=0.7.19", default-features = false, features = ["io"] }
+
+# This migration crate is integrated into the root workspace by the integrator.
+# Until then it is independently testable without editing the shared manifest.
+[workspace]
