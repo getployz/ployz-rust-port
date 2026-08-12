@@ -1,18 +1,132 @@
 //! Process-wide Prometheus metrics used by Ployz.
 
-use std::sync::LazyLock;
+use std::collections::{HashMap, hash_map::Entry};
+use std::fmt::Debug;
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::SystemTime;
 
-use prometheus::{Gauge, GaugeVec, IntCounter, IntCounterVec, Opts, Registry};
+use prometheus::{
+    Gauge, GaugeVec, IntCounter, IntCounterVec, Opts, Registry,
+    core::{Collector, Desc},
+    proto::{Metric, MetricFamily},
+};
+use protobuf::{Message, well_known_types::timestamp::Timestamp};
 
 /// Namespace applied to every Ployz application metric.
 pub const NAMESPACE: &str = "ployz";
 
 const DAEMON_SUBSYSTEM: &str = "ployzd";
 
+/// A counter vector whose collected children include their creation timestamp.
+///
+/// Children remain ordinary [`IntCounter`] handles. Register this vector as a
+/// collector and gather it through the registry to receive Prometheus
+/// `Counter.created_timestamp` field 3 for every created child.
+#[derive(Clone)]
+pub struct CreatedIntCounterVec {
+    inner: IntCounterVec,
+    variable_labels: Arc<[String]>,
+    created_at: Arc<Mutex<HashMap<Vec<String>, SystemTime>>>,
+}
+
+impl CreatedIntCounterVec {
+    /// Creates a counter vector that records each label set's first access.
+    pub fn new(opts: Opts, variable_labels: &[&str]) -> prometheus::Result<Self> {
+        Ok(Self {
+            inner: IntCounterVec::new(opts, variable_labels)?,
+            variable_labels: variable_labels
+                .iter()
+                .map(|label| (*label).to_owned())
+                .collect::<Vec<_>>()
+                .into(),
+            created_at: Arc::new(Mutex::new(HashMap::new())),
+        })
+    }
+
+    /// Returns the child for `values`, recording the winning first access.
+    pub fn get_metric_with_label_values<V>(&self, values: &[V]) -> prometheus::Result<IntCounter>
+    where
+        V: AsRef<str> + Debug,
+    {
+        let key = values
+            .iter()
+            .map(|value| value.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        let mut created_at = self
+            .created_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        match created_at.entry(key) {
+            Entry::Occupied(_) => self.inner.get_metric_with_label_values(values),
+            Entry::Vacant(entry) => {
+                let child = self.inner.get_metric_with_label_values(values)?;
+                entry.insert(SystemTime::now());
+                Ok(child)
+            }
+        }
+    }
+
+    /// Returns the child for `values`, panicking on inconsistent cardinality.
+    pub fn with_label_values<V>(&self, values: &[V]) -> IntCounter
+    where
+        V: AsRef<str> + Debug,
+    {
+        self.get_metric_with_label_values(values).unwrap()
+    }
+
+    fn metric_key(&self, metric: &Metric) -> Option<Vec<String>> {
+        self.variable_labels
+            .iter()
+            .map(|name| {
+                metric
+                    .label
+                    .iter()
+                    .find(|label| label.name() == name)
+                    .map(|label| label.value().to_owned())
+            })
+            .collect()
+    }
+}
+
+impl Collector for CreatedIntCounterVec {
+    fn desc(&self) -> Vec<&Desc> {
+        self.inner.desc()
+    }
+
+    fn collect(&self) -> Vec<MetricFamily> {
+        let created_at = self
+            .created_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut families = self.inner.collect();
+
+        for family in &mut families {
+            for metric in &mut family.metric {
+                let Some(created) = self.metric_key(metric).and_then(|key| created_at.get(&key))
+                else {
+                    continue;
+                };
+                let Some(counter) = metric.counter.as_mut() else {
+                    continue;
+                };
+                let timestamp = Timestamp::from(*created)
+                    .write_to_bytes()
+                    .expect("serialize generated Timestamp");
+                counter
+                    .mut_unknown_fields()
+                    .add_length_delimited(3, timestamp);
+            }
+        }
+
+        families
+    }
+}
+
 /// Registered handles for all process metrics.
 pub struct Metrics {
     build_info: GaugeVec,
-    dns_queries: IntCounterVec,
+    dns_queries: CreatedIntCounterVec,
 }
 
 impl Metrics {
@@ -23,7 +137,7 @@ impl Metrics {
                 .subsystem(DAEMON_SUBSYSTEM),
             &["version"],
         )?;
-        let dns_queries = IntCounterVec::new(
+        let dns_queries = CreatedIntCounterVec::new(
             Opts::new("query_total", "Counter of DNS queries.")
                 .namespace(NAMESPACE)
                 .subsystem("dns"),
