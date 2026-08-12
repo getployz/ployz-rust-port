@@ -1,0 +1,9 @@
+[package]
+name = "ployz-internal-cli-progress"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+ployz-internal-cli-tui = { path = "../ployz-internal-cli-tui" }
