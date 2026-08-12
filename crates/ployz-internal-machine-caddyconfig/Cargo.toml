@@ -1,0 +1,25 @@
+[package]
+name = "ployz-internal-machine-caddyconfig"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[dependencies]
+async-compression = { version = "=0.4.43", default-features = false, features = ["gzip", "tokio"] }
+futures-util = { version = "=0.3.34", default-features = false, features = ["std"] }
+gotmpl = { version = "=0.6.1", default-features = false }
+ployz-internal-fs = { path = "../ployz-internal-fs" }
+ployz-internal-machine-api-pb = { path = "../ployz-internal-machine-api-pb" }
+ployz-internal-machine-store = { path = "../ployz-internal-machine-store" }
+ployz-pkg-api = { path = "../ployz-pkg-api" }
+reqwest = { version = "=0.13.4", default-features = false, features = ["stream"] }
+rustls = { version = "=0.23.43", default-features = false, features = ["ring", "std"] }
+serde = { version = "=1.0.229", default-features = false, features = ["std"] }
+serde_json = { version = "=1.0.151", default-features = false, features = ["raw_value", "std"] }
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "net", "rt", "time"] }
+tokio-util = { version = "=0.7.19", default-features = false, features = ["io"] }
+tonic = { version = "=0.14.6", default-features = false, features = ["codegen"] }
+
+[dev-dependencies]
+tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
