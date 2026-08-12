@@ -2873,6 +2873,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ployz-internal-machine-cluster"
+version = "0.0.0"
+dependencies = [
+ "ployz-internal-corrosion",
+ "ployz-internal-dns",
+ "ployz-internal-machine-api-pb",
+ "ployz-internal-machine-network",
+ "ployz-internal-machine-store",
+ "ployz-internal-secret",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+ "tracing",
+]
+
+[[package]]
 name = "ployz-internal-machine-constants"
 version = "0.0.0"
 
