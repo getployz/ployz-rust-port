@@ -1154,6 +1154,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "rustls",
+ "rustls-platform-verifier",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -1191,6 +1192,7 @@ dependencies = [
  "pin-project-lite",
  "socket2",
  "tokio",
+ "tower-layer",
  "tower-service",
  "tracing",
 ]
@@ -1751,6 +1753,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
+name = "oxiri"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b6bd0ef560f078e41ce2ebf370cce217e7fb2c3695ffa87541151c9de94e83a"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1846,6 +1857,25 @@ version = "0.0.0"
 dependencies = [
  "iocraft",
  "oci-spec",
+]
+
+[[package]]
+name = "ployz-internal-dns"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "flate2",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "oxiri",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
