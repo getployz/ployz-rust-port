@@ -24,4 +24,4 @@ lossless-docker-engine-progress-streaming	approved	migration/dependencies/lossle
 prometheus-created-timestamp-prototext-parity	approved	migration/dependencies/prometheus-created-timestamp-prototext-parity.md	prometheus[protobuf];protobuf	0.14.0;3.7.2	Apache-2.0;MIT	yes	internal/metrics,internal/machine/metrics	-
 go-compatible-json-codec	researching	migration/dependencies/go-compatible-json-codec.md	-	-	-	yes	internal/corrosion,internal/dns	native:019ff448-2f26-7bf0-a71e-6f945f660c03
 go-compatible-url-and-reference-resolution	researching	migration/dependencies/go-compatible-url-and-reference-resolution.md	-	-	-	yes	internal/dns	native:019ff448-77b2-76f0-932a-e6caa17e8185
-in-process-ssh-client	research-required	migration/dependencies/in-process-ssh-client.md	-	-	-	yes	internal/sshexec,pkg/client/connector	native:019ff434-a235-7c82-b4cb-2cbc451512f3
+in-process-ssh-client	human-decision-required	migration/dependencies/in-process-ssh-client.md	russh[ring,rsa];tokio[io-util,macros,net,rt,sync,time]	0.62.6;1.53.1	Apache-2.0;MIT	yes	internal/sshexec,pkg/client/connector	-
