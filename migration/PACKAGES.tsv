@@ -45,7 +45,7 @@ internal/machine/store	crates/ployz-internal-machine-store	waiting-internal	2	-	
 internal/metrics	crates/ployz-internal-metrics	integrated	0	integrator	-	c759bea091302746e6ea7a21d9538afd8ec60a0f	-	-	-	cmd/uncloudd,internal/machine/dns
 internal/proxy	crates/ployz-internal-proxy	integrated	0	integrator	-	eb21dc6e508b327ad0926c3c8c680c71001574c5	-	-	-	cmd/uc,pkg/client
 internal/secret	crates/ployz-internal-secret	integrated	0	integrator	-	8c82b2034d27de899ddbea175b4633317809e248	-	-	-	cmd/uc/service,internal/cli/config,internal/machine,internal/machine/cluster,internal/machine/docker,internal/machine/network,internal/machine/network/tunnel,internal/ucind,pkg/client,pkg/client/deploy
-internal/sshexec	crates/ployz-internal-sshexec	ready	1	-	-	-	-	internal/fs	-	internal/cli,pkg/client/connector
+internal/sshexec	crates/ployz-internal-sshexec	implementing	1	native:019ff431-9e69-7f21-b76a-04e4114c8e2e	41caa17e8da11cc1e51ed04c99d0208f51e170a8	-	-	internal/fs	-	internal/cli,pkg/client/connector
 internal/ucind	crates/ployz-internal-ucind	waiting-internal	7	-	-	-	-	internal/cli/config,internal/machine,internal/machine/api/pb,internal/machine/cluster,internal/secret,pkg/client,pkg/client/connector	-	cmd/ucind,cmd/ucind/cluster,internal/ucind/completion
 internal/ucind/completion	crates/ployz-internal-ucind-completion	waiting-internal	8	-	-	-	-	internal/ucind	-	cmd/ucind/cluster
 internal/version	crates/ployz-internal-version	integrated	0	integrator	-	2a120dcd5b4bb7def3da0b7ee5fbd73fe0b30f9	-	-	-	cmd/uc,cmd/uncloudd,internal/grpcversion,internal/machine
